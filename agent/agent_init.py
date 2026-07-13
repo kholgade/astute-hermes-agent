@@ -1488,6 +1488,33 @@ def init_agent(
     # to reduce token count. Verbose mode includes them for backwards compatibility.
     agent._system_prompt_mode = _agent_section.get("system_prompt_mode", "optimized")
 
+    # System-prompt section gating (lean prompt).
+    # Every block below is DISABLED BY DEFAULT to keep the system prompt
+    # minimal (target <5K incl. skills) for deployments that don't need them
+    # (e.g. headless VPS, local non-frontier models, CLI-only):
+    #   computer_use, google_guidance, openai_guidance, tool_use_enforcement,
+    #   session_search, memory_guidance, skills_guidance, parallel_tool_calls,
+    #   task_completion, hermes_docs_pointer, platform_hint, steer_channel
+    # Each is an INDEPENDENT flag — the only way to include a block is to set
+    # its key to true.  There is NO master switch that turns them all back on;
+    # disabling ``lean_system_prompt`` does not restore anything.  To get the
+    # original verbose Hermes prompt you must enable every flag individually:
+    #   agent:
+    #     system_prompt_sections:
+    #       memory_guidance: true
+    #       task_completion: true
+    #       ...                                # enable each block you want
+    # ``lean_system_prompt`` is retained for forward-compat but no longer
+    # affects gating (kept so existing configs don't error).
+    agent._lean_system_prompt = bool(_agent_section.get("lean_system_prompt", True))
+    _sp_sections = _agent_section.get("system_prompt_sections", {})
+    if not isinstance(_sp_sections, dict):
+        _sp_sections = {}
+    # Normalise keys to lowercase strings so config is case-insensitive.
+    agent._prompt_sections = {
+        str(k).lower().strip(): bool(v) for k, v in _sp_sections.items()
+    }
+
     # Planning mode: "auto" (default), "always", or "disabled".
     # Auto: use planning for complex/medium tasks only (classification-based).
     # Always: enforce planning for all tasks.

@@ -13,8 +13,10 @@ Three tiers are joined with ``\\n\\n``:
   guidance, computer-use guidance, nous subscription block, tool-use
   enforcement guidance + per-model operational guidance, skills prompt,
   alibaba model-name workaround, environment hints, platform hints.
-* ``context``  — caller-supplied ``system_message`` plus context files
-  (AGENTS.md / .cursorrules / etc.) discovered under ``TERMINAL_CWD``.
+* ``context``  — caller-supplied ``system_message`` only. Project context
+  files (AGENTS.md / CLAUDE.md / .cursorrules) are NEVER loaded into the
+  interactive system prompt: in production they don't serve the user's goal
+  and can add tens of thousands of tokens to every cached turn.
 * ``volatile`` — memory snapshot, USER.md profile, external memory
   provider block, timestamp/session/model/provider line.
 
@@ -61,6 +63,39 @@ def _ra():
     """
     import run_agent
     return run_agent
+
+
+# Prompt blocks controlled by ``system_prompt_sections`` in config.yaml.
+# Every one of these is DISABLED BY DEFAULT.  Each is an independent flag:
+# the only way to include a block is to set its key to true.  There is no
+# master switch that turns them all back on — to restore the original
+# (verbose) Hermes prompt you must enable every flag individually.
+_GATED_PROMPT_SECTIONS = frozenset({
+    "computer_use",
+    "google_guidance",
+    "openai_guidance",
+    "tool_use_enforcement",
+    "session_search",
+    "memory_guidance",
+    "skills_guidance",
+    "parallel_tool_calls",
+    "task_completion",
+    "hermes_docs_pointer",
+    "platform_hint",
+    "steer_channel",
+})
+
+
+def _section_enabled(agent: Any, name: str) -> bool:
+    """Return True only if this prompt block is explicitly enabled in config.
+
+    Every gated section defaults to OFF.  The block is included only when
+    ``system_prompt_sections.<name>`` is set to true in config.yaml.  The
+    ``lean_system_prompt`` master flag does NOT re-enable anything — disabling
+    it leaves every section off; old behaviour requires enabling each flag.
+    """
+    sections = getattr(agent, "_prompt_sections", None) or {}
+    return bool(sections.get(name, False))
 
 
 def _resolve_platform_hint(agent: Any, platform_key: str, default_hint: str) -> str:
@@ -165,9 +200,6 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # we resolve through ``_ra()`` to honor those patches.
     _r = _ra()
 
-    _system_prompt_mode = getattr(agent, "_system_prompt_mode", "optimized").lower().strip()
-    _include_context_files = _system_prompt_mode != "optimized"
-
     # Resolve the model's context window once so context-file caps can scale
     # to it (dynamic cap — see prompt_builder._dynamic_context_file_max_chars).
     # None falls back to the historical flat default. This value is stable for
@@ -197,7 +229,8 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
         stable_parts.append(DEFAULT_AGENT_IDENTITY)
 
     # Pointer to the hermes-agent skill + docs for user questions about Hermes itself.
-    stable_parts.append(HERMES_AGENT_HELP_GUIDANCE)
+    if _section_enabled(agent, "hermes_docs_pointer"):
+        stable_parts.append(HERMES_AGENT_HELP_GUIDANCE)
 
     # Universal task-completion / no-fabrication guidance.  Applied to ALL
     # models regardless of tool_use_enforcement gating — the failure modes
@@ -205,7 +238,7 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # path is blocked) are not model-family specific.  Gated only by
     # config.yaml ``agent.task_completion_guidance`` (default True) so
     # users who want a leaner prompt can turn it off.
-    if getattr(agent, "_task_completion_guidance", True) and agent.valid_tool_names:
+    if _section_enabled(agent, "task_completion") and agent.valid_tool_names:
         stable_parts.append(TASK_COMPLETION_GUIDANCE)
 
     # Universal parallel-tool-call guidance.  Tells the model to batch
@@ -216,16 +249,16 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # round-trips and the resent-context cost that compounds over a long
     # conversation.  Gated by config.yaml ``agent.parallel_tool_call_guidance``
     # (default True) and only injected when tools are actually loaded.
-    if getattr(agent, "_parallel_tool_call_guidance", True) and agent.valid_tool_names:
+    if _section_enabled(agent, "parallel_tool_calls") and agent.valid_tool_names:
         stable_parts.append(PARALLEL_TOOL_CALL_GUIDANCE)
 
     # Tool-aware behavioral guidance: only inject when the tools are loaded
     tool_guidance = []
-    if "memory" in agent.valid_tool_names:
+    if "memory" in agent.valid_tool_names and _section_enabled(agent, "memory_guidance"):
         tool_guidance.append(MEMORY_GUIDANCE)
-    if "session_search" in agent.valid_tool_names:
+    if "session_search" in agent.valid_tool_names and _section_enabled(agent, "session_search"):
         tool_guidance.append(SESSION_SEARCH_GUIDANCE)
-    if "skill_manage" in agent.valid_tool_names:
+    if "skill_manage" in agent.valid_tool_names and _section_enabled(agent, "skills_guidance"):
         tool_guidance.append(SKILLS_GUIDANCE)
     # Kanban worker/orchestrator lifecycle — only present when the
     # dispatcher spawned this process (kanban_show check_fn gates on
@@ -242,14 +275,14 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
 
     # Steering only lands inside tool results, so it's only reachable when the
     # agent has tools. Static text → byte-stable prompt (no cache hit).
-    if agent.valid_tool_names:
+    if agent.valid_tool_names and _section_enabled(agent, "steer_channel"):
         stable_parts.append(STEER_CHANNEL_NOTE)
 
     # Computer-use — goes in as its own block rather than being merged into
     # tool_guidance because the content is multi-paragraph. The guidance is
     # rendered for the host platform so Windows/Linux hosts don't see
     # macOS-only wording (Mac, Space, cmd+s).
-    if "computer_use" in agent.valid_tool_names:
+    if "computer_use" in agent.valid_tool_names and _section_enabled(agent, "computer_use"):
         from agent.prompt_builder import computer_use_guidance
         stable_parts.append(computer_use_guidance())
 
@@ -277,19 +310,23 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
             # "auto" or any unrecognised value — use hardcoded defaults
             model_lower = (agent.model or "").lower()
             _inject = any(p in model_lower for p in TOOL_USE_ENFORCEMENT_MODELS)
-        if _inject:
+        # Lean (superseding) config disables tool-use enforcement and the
+        # per-model guidance blocks by default; each can be re-enabled.
+        if _inject and _section_enabled(agent, "tool_use_enforcement"):
             stable_parts.append(TOOL_USE_ENFORCEMENT_GUIDANCE)
             _model_lower = (agent.model or "").lower()
             # Google model operational guidance (conciseness, absolute
             # paths, parallel tool calls, verify-before-edit, etc.)
-            if "gemini" in _model_lower or "gemma" in _model_lower:
+            if ("gemini" in _model_lower or "gemma" in _model_lower) and \
+                    _section_enabled(agent, "google_guidance"):
                 stable_parts.append(GOOGLE_MODEL_OPERATIONAL_GUIDANCE)
             # OpenAI GPT/Codex execution discipline (tool persistence,
             # prerequisite checks, verification, anti-hallucination).
             # Also applied to xAI Grok — same failure modes (claims completion
             # without tool calls, suggests workarounds instead of using
             # existing tools, replies with plans instead of executing).
-            if "gpt" in _model_lower or "codex" in _model_lower or "grok" in _model_lower:
+            if ("gpt" in _model_lower or "codex" in _model_lower or "grok" in _model_lower) and \
+                    _section_enabled(agent, "openai_guidance"):
                 stable_parts.append(OPENAI_MODEL_EXECUTION_GUIDANCE)
 
     has_skills_tools = any(name in agent.valid_tool_names for name in ['skills_list', 'skill_view', 'skill_manage'])
@@ -435,8 +472,8 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     _effective_hint = _resolve_platform_hint(agent, platform_key, _default_hint)
     if platform_key == "tui" and _effective_hint:
         _effective_hint = _tui_embedded_pane_clarifier(_effective_hint)
-    if _effective_hint:
-        stable_parts.append(_effective_hint)
+    if _effective_hint and _section_enabled(agent, "platform_hint"):
+        stable_parts.append(f"<platform_hint>\n{_effective_hint}\n</platform_hint>")
 
     # ── Context tier (cwd-dependent, may change between sessions) ─
     context_parts: List[str] = []
@@ -446,16 +483,11 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     if system_message is not None:
         context_parts.append(system_message)
 
-    if not agent.skip_context_files and _include_context_files:
-        # Prefer the configured TERMINAL_CWD (gateway mode). When unset (local
-        # CLI), None lets build_context_files_prompt fall back to the launch
-        # dir — the user's real cwd there, but the install dir for the gateway
-        # daemon, which is why the gateway sets TERMINAL_CWD.
-        context_files_prompt = _r.build_context_files_prompt(
-            cwd=resolve_context_cwd(), skip_soul=_soul_loaded,
-            context_length=_ctx_len)
-        if context_files_prompt:
-            context_parts.append(context_files_prompt)
+    # Context files (AGENTS.md / CLAUDE.md / .cursorrules) are NEVER loaded.
+    # In production they don't contribute to the user's goal and can add tens
+    # of thousands of tokens to every cached turn (e.g. a home-dir AGENTS.md
+    # inflating a bare "Hello" to 22K+ prompt tokens). They are intentionally
+    # excluded from the system prompt with no opt-in flag.
 
     # ── Volatile tier (changes per session/turn — never cached) ───
     volatile_parts: List[str] = []
