@@ -1,9 +1,9 @@
 """End-to-end: a built wheel, installed without a source tree, must resolve
-i18n catalogs and render human strings — not raw key paths.
+English locale catalog and render human strings — not raw key paths.
 
-This is the test that would have caught #27632 / #35374 / #23943. Metadata
-unit tests (test_packaging_metadata.py) prove the glob is declared; this proves
-the runtime actually finds the catalogs after a real pip install.
+This is the test that would have caught #27632 / #35374 / #23943. After
+removing multi-language support, this validates that the single English
+catalog ships correctly with the wheel.
 
 This lives in tests/ (NOT tests/e2e/) so it is collected by the dedicated CI
 step in Task 9, not by the existing `python -m pytest tests/e2e/` runner.
@@ -121,17 +121,13 @@ def test_built_sdist_ships_locale_catalogs(tmp_path):
         # hermes_agent-0.15.1/locales/en.yaml — match on the suffix.
         catalogs = [m for m in tf.getnames() if "/locales/" in m and m.endswith(".yaml")]
 
-    # Compare against the canonical language list rather than a hardcoded floor
-    # so adding/removing a catalog updates the guard automatically and a dropped
-    # catalog (not just a fully-empty graft) trips it.
     from agent.i18n import SUPPORTED_LANGUAGES
-
     expected = len(SUPPORTED_LANGUAGES)
+    assert expected == 1, "Only English is supported"
     assert len(catalogs) == expected, (
         f"sdist shipped {len(catalogs)} locale catalogs, expected {expected} "
-        f"({len(SUPPORTED_LANGUAGES)} supported languages) — check `graft "
-        "locales` in MANIFEST.in"
+        f"(English only) — check `graft locales` in MANIFEST.in"
     )
     assert any(m.endswith("/locales/en.yaml") for m in catalogs), (
-        f"sdist missing locales/en.yaml; shipped: {catalogs[:5]}"
+        f"sdist missing locales/en.yaml; shipped: {catalogs}"
     )
