@@ -2378,10 +2378,13 @@ DEFAULT_CONFIG = {
         #                     never crammed into a chat bubble), apply with
         #                     /skills approve <id> or drop with /skills reject <id>.
         "write_approval": False,
-        # Automatic skill disable (Issue #9)
+        # Automatic skill disable (Issue #9). Keys must match what
+        # agent/skill_auto_disable.py actually reads (threshold_days,
+        # check_interval_hours) — see Issue #14.
         "auto_disable": {
             "enabled": True,  # Enable automatic disabling of unused skills
-            "inactive_days": 30,  # Disable skills unused for this many days
+            "threshold_days": 30,  # Disable skills unused for this many days
+            "check_interval_hours": 24,  # Minimum hours between auto-disable checks
         },
     },
 
