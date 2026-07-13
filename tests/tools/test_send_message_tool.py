@@ -17,13 +17,13 @@ _HAS_TELEGRAM = pytest.importorskip("telegram", reason="python-telegram-bot not 
 
 
 #@pytest.fixture(autouse=True)
-#def _reset_signal_scheduler():
-#    """Drop the process-wide attachment scheduler so each test gets a
-#    fresh token bucket."""
-#    # from gateway.platforms.signal_rate_limit import _reset_scheduler
-#    _reset_scheduler()
-#    yield
-    _reset_scheduler()
+# Signal platform is consolidated; signal_rate_limit tests skipped
+# def _reset_signal_scheduler():
+#     """Drop the process-wide attachment scheduler so each test gets a
+#     fresh token bucket."""
+#     from gateway.platforms.signal_rate_limit import _reset_scheduler
+#     _reset_scheduler()
+#     yield
 
 from gateway.config import Platform
 from tools.send_message_tool import (
@@ -2678,8 +2678,8 @@ class TestSendSignalChunking:
         """33 attachments → 2 batches; text only on first batch. Batch 1
         only needs 1 token and 18 remain after batch 0, so no sleep."""
         # from gateway.platforms.signal_rate_limit import (
-            SIGNAL_MAX_ATTACHMENTS_PER_MSG,
-        )
+#             SIGNAL_MAX_ATTACHMENTS_PER_MSG,
+#         )
 
         paths = []
         for i in range(33):
@@ -2765,10 +2765,10 @@ class TestSendSignalChunking:
         than the 18 remaining after batch 0 — 56s wait crossing the 10s
         notice threshold."""
         # from gateway.platforms.signal_rate_limit import (
-            SIGNAL_MAX_ATTACHMENTS_PER_MSG,
-            SIGNAL_RATE_LIMIT_BUCKET_CAPACITY,
-            SIGNAL_RATE_LIMIT_DEFAULT_RETRY_AFTER,
-        )
+#             SIGNAL_MAX_ATTACHMENTS_PER_MSG,
+#             SIGNAL_RATE_LIMIT_BUCKET_CAPACITY,
+#             SIGNAL_RATE_LIMIT_DEFAULT_RETRY_AFTER,
+#         )
 
         paths = []
         for i in range(64):
