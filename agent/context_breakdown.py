@@ -101,6 +101,14 @@ def compute_session_context_breakdown(
 
     skills_match = _SKILLS_BLOCK_RE.search(stable)
     skills_index = skills_match.group(0) if skills_match else ""
+    if not skills_index:
+        # With skills.index_placement: "user_message" (the default, issue #17)
+        # the index is injected as a call-time user message instead of living in
+        # the stable system string. build_system_prompt_parts stashes the
+        # rendered index on the agent, so account for it here regardless of
+        # placement — otherwise the breakdown under-reports Skills as zero.
+        _stashed = getattr(agent, "_skills_index_content", "")
+        skills_index = _stashed if isinstance(_stashed, str) else ""
 
     memory_block, user_block = _memory_blocks(agent)
     memory_text = "\n\n".join(part for part in (memory_block, user_block) if part).strip()

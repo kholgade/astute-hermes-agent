@@ -50,6 +50,10 @@ def log_api_request(
     # Skip redaction in debug mode
     skip_redaction = agent._api_request_logging == "debug"
 
+    # Locate the request sub-payload. Anthropic-style calls pass tools/system/
+    # messages as flat kwargs; some transports nest them under "body".
+    body = request_payload.get("body") if isinstance(request_payload.get("body"), dict) else request_payload
+
     # Extract response data
     response_status_code = None
     response_headers = {}
@@ -85,6 +89,12 @@ def log_api_request(
             "url": request_payload.get("url", "unknown"),
             "headers": dict(request_payload.get("headers", {})) if not skip_redaction else dict(request_payload.get("headers", {})),
             "body": dict(request_payload.get("body", {})) if "body" in request_payload else request_payload.get("messages", []),
+            # The tool schemas are the single biggest prompt-token contributor
+            # but were previously omitted from the log, making the recorded body
+            # look far smaller than what the provider billed (issue #17). Capture
+            # them (redacted + truncated downstream) so the true split is visible.
+            "tools": body.get("tools") if isinstance(body, dict) else None,
+            "system": body.get("system") if isinstance(body, dict) else None,
         },
         "response": {
             "status_code": response_status_code,
@@ -124,6 +134,7 @@ def log_token_metrics(
     cost_usd: Optional[float],
     duration_ms: float,
     error: Optional[Exception] = None,
+    request_payload: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Log token usage metrics and cost estimation.
 
@@ -135,12 +146,29 @@ def log_token_metrics(
         cost_usd: Estimated cost in USD
         duration_ms: API call duration in milliseconds
         error: Exception if request failed (None if success)
+        request_payload: The request kwargs actually sent. Used to compute a
+            local tools/system/messages token estimate when the provider only
+            returns the aggregate ``prompt_tokens`` (e.g. ollama-cloud) so the
+            ``request_tokens`` breakdown is populated rather than all-zero
+            (issue #17).
     """
     if not agent or not agent._api_token_metrics_logging:
         return
 
     # Parse token counts from usage object
     usage_dict = _extract_usage_dict(usage)
+
+    # When the provider doesn't break the prompt down by section, estimate the
+    # split locally from the payload we sent. Never overwrite a real value the
+    # provider supplied — only fill zeros/missing fields.
+    estimated_breakdown = {}
+    if request_payload is not None:
+        est = _estimate_request_token_breakdown(request_payload)
+        for key in ("tools_tokens", "system_tokens", "messages_tokens"):
+            if not usage_dict.get(key):
+                usage_dict[key] = est.get(key, 0)
+                if est.get(key):
+                    estimated_breakdown[key] = est[key]
 
     entry = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -154,6 +182,9 @@ def log_token_metrics(
             "messages_tokens": usage_dict.get("messages_tokens", 0),
             "tools_tokens": usage_dict.get("tools_tokens", 0),
         },
+        # Names of the request_tokens fields that were locally estimated rather
+        # than reported by the provider (issue #17 observability).
+        "request_tokens_estimated": sorted(estimated_breakdown.keys()),
         "response_tokens": {
             "output_tokens": usage_dict.get("output_tokens", 0),
             "reasoning_tokens": usage_dict.get("reasoning_tokens", 0),
@@ -305,6 +336,51 @@ def _extract_usage_dict(usage: Optional[Any]) -> Dict[str, int]:
                 result[field] = int(val)
         elif isinstance(usage, dict) and field in usage:
             result[field] = int(usage[field])
+
+    return result
+
+
+def _estimate_request_token_breakdown(request_payload: Dict[str, Any]) -> Dict[str, int]:
+    """Estimate tools/system/messages token counts from the sent payload.
+
+    Providers like ollama-cloud only return the aggregate ``prompt_tokens``,
+    leaving the ``request_tokens`` breakdown all-zero (issue #17). This gives a
+    provider-independent local estimate. Tool schemas reuse the same chars/4
+    estimator that gates tool-search deferral so the two numbers are directly
+    comparable; system + messages use the same rule of thumb.
+    """
+    if not isinstance(request_payload, dict):
+        return {}
+    body = request_payload.get("body") if isinstance(request_payload.get("body"), dict) else request_payload
+    if not isinstance(body, dict):
+        return {}
+
+    result: Dict[str, int] = {}
+    try:
+        from tools.tool_search import estimate_tokens_from_schemas, CHARS_PER_TOKEN
+    except Exception:
+        return {}
+
+    tools = body.get("tools")
+    if isinstance(tools, list) and tools:
+        result["tools_tokens"] = estimate_tokens_from_schemas(tools)
+
+    def _chars_to_tokens(value: Any) -> int:
+        if value is None:
+            return 0
+        try:
+            text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            text = str(value)
+        return int(len(text) / CHARS_PER_TOKEN) if text else 0
+
+    system = body.get("system")
+    if system:
+        result["system_tokens"] = _chars_to_tokens(system)
+
+    messages = body.get("messages")
+    if isinstance(messages, list) and messages:
+        result["messages_tokens"] = _chars_to_tokens(messages)
 
     return result
 

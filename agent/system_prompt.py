@@ -98,6 +98,77 @@ def _section_enabled(agent: Any, name: str) -> bool:
     return bool(sections.get(name, False))
 
 
+def _skills_index_placement() -> str:
+    """Return where the skill index goes: "user_message" (default) or "system".
+
+    Reads ``skills.index_placement`` from config (issue #17). Any value other
+    than "system" resolves to the default "user_message". Failures fall back to
+    the default so a config problem never strips the index entirely.
+    """
+    try:
+        from hermes_cli.config import load_config as _load
+        cfg = _load() or {}
+        skills_cfg = cfg.get("skills") if isinstance(cfg.get("skills"), dict) else {}
+        val = str((skills_cfg or {}).get("index_placement", "user_message")).strip().lower()
+        return "system" if val == "system" else "user_message"
+    except Exception:
+        return "user_message"
+
+
+def _skills_index_complexity_gating() -> bool:
+    """Return whether to complexity-gate the user-message skill index (#17)."""
+    try:
+        from hermes_cli.config import load_config as _load
+        cfg = _load() or {}
+        skills_cfg = cfg.get("skills") if isinstance(cfg.get("skills"), dict) else {}
+        return str((skills_cfg or {}).get("index_complexity_gating", False)).strip().lower() in (
+            "true", "1", "yes", "on")
+    except Exception:
+        return False
+
+
+def build_skills_index_for_agent(agent: Any) -> str:
+    """Render the compact skill index for ``agent``, or "" when unavailable.
+
+    Extracted so both the system-prompt assembly and the call-time user-message
+    injection (conversation_loop) compute the index identically — the latter
+    matters on resumed sessions, where the system prompt is restored from the DB
+    without a rebuild and would otherwise never populate the index (issue #17).
+    The underlying ``build_skills_system_prompt`` is cached (in-process LRU +
+    disk snapshot), so calling this per turn is cheap.
+    """
+    _r = _ra()
+    valid_tool_names = getattr(agent, "valid_tool_names", None) or set()
+    has_skills_tools = any(
+        name in valid_tool_names for name in ("skills_list", "skill_view", "skill_manage")
+    )
+    if not has_skills_tools:
+        return ""
+    avail_toolsets = {
+        toolset
+        for toolset in (_r.get_toolset_for_tool(tool_name) for tool_name in valid_tool_names)
+        if toolset
+    }
+    # Focus mode (opt-in) demotes non-coding skill categories to names-only in
+    # the index (never hidden — skill_view/skills_list reach everything, and
+    # every name stays visible for recall). The default coding posture leaves
+    # the index untouched.
+    _compact_cats = frozenset()
+    try:
+        from agent.coding_context import coding_compact_skill_categories
+
+        _compact_cats = coding_compact_skill_categories(
+            platform=getattr(agent, "platform", None), cwd=resolve_context_cwd()
+        )
+    except Exception:
+        _compact_cats = frozenset()
+    return _r.build_skills_system_prompt(
+        available_tools=valid_tool_names,
+        available_toolsets=avail_toolsets,
+        compact_categories=_compact_cats or None,
+    ) or ""
+
+
 def _resolve_platform_hint(agent: Any, platform_key: str, default_hint: str) -> str:
     """Apply a per-platform prompt-hint override to the default hint.
 
@@ -329,36 +400,14 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
                     _section_enabled(agent, "openai_guidance"):
                 stable_parts.append(OPENAI_MODEL_EXECUTION_GUIDANCE)
 
-    has_skills_tools = any(name in agent.valid_tool_names for name in ['skills_list', 'skill_view', 'skill_manage'])
-    if has_skills_tools:
-        avail_toolsets = {
-            toolset
-            for toolset in (
-                _r.get_toolset_for_tool(tool_name) for tool_name in agent.valid_tool_names
-            )
-            if toolset
-        }
-        # Focus mode (opt-in) demotes non-coding skill categories to
-        # names-only in the index (never hidden — skill_view/skills_list
-        # reach everything, and every name stays visible for recall). The
-        # default coding posture leaves the index untouched.
-        _compact_cats = frozenset()
-        try:
-            from agent.coding_context import coding_compact_skill_categories
-
-            _compact_cats = coding_compact_skill_categories(
-                platform=agent.platform, cwd=resolve_context_cwd()
-            )
-        except Exception:
-            _compact_cats = frozenset()
-        skills_prompt = _r.build_skills_system_prompt(
-            available_tools=agent.valid_tool_names,
-            available_toolsets=avail_toolsets,
-            compact_categories=_compact_cats or None,
-        )
-    else:
-        skills_prompt = ""
-    if skills_prompt:
+    skills_prompt = build_skills_index_for_agent(agent)
+    # Placement (issue #17): by default the skill index is injected as a
+    # call-time user message (see conversation_loop) so it stays out of the
+    # cached system string; set skills.index_placement: "system" to keep the
+    # legacy behaviour of baking it into the stable prompt. Either way we stash
+    # the rendered index on the agent so the loop and breakdown can read it.
+    agent._skills_index_content = skills_prompt or ""
+    if skills_prompt and _skills_index_placement() != "user_message":
         stable_parts.append(skills_prompt)
 
     # Alibaba Coding Plan API always returns "glm-4.7" as model name regardless
@@ -599,6 +648,7 @@ def format_tools_for_system_message(agent: Any) -> str:
 
 __all__ = [
     "build_system_prompt_parts",
+    "build_skills_index_for_agent",
     "build_system_prompt",
     "invalidate_system_prompt",
     "format_tools_for_system_message",

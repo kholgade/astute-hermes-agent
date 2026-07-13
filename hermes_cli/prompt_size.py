@@ -76,9 +76,15 @@ def compute_prompt_breakdown(platform: str = "cli") -> Dict[str, Any]:
     volatile = parts.get("volatile", "")
 
     # Skills index — the <available_skills> block (the largest single block
-    # when many skills are installed). Measured inside the stable tier.
+    # when many skills are installed). Measured inside the stable tier, or —
+    # under the default skills.index_placement: "user_message" (issue #17) —
+    # from the index stashed on the agent, since it no longer lives in the
+    # stable system string.
     skills_match = _SKILLS_BLOCK_RE.search(stable)
     skills_index = skills_match.group(0) if skills_match else ""
+    if not skills_index:
+        _stashed = getattr(agent, "_skills_index_content", "")
+        skills_index = _stashed if isinstance(_stashed, str) else ""
 
     # Memory + user profile live in the volatile tier. We re-derive their
     # blocks directly from the memory store so the numbers are attributable

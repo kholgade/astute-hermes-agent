@@ -79,6 +79,27 @@ _HERMES_CORE_TOOLS = [
     "computer_use",
 ]
 
+# The always-on substrate when ``tools.tool_search.minimal_core`` is enabled.
+# Everything NOT in this list — browser, vision, image_gen, memory, todo,
+# clarify, session_search, delegate, cronjob, tts, computer_use, kanban,
+# home-assistant, etc. — becomes deferrable and is served on demand through the
+# tool_search/describe/call bridges instead of costing schema tokens every turn
+# (issue #17). The floor is a universal executor (file + terminal + code
+# execution + web) plus the skills loaders, which are the gateway to the rest of
+# the agent's capabilities. Names here must exist in ``_HERMES_CORE_TOOLS``.
+_HERMES_MINIMAL_CORE = [
+    # Network / research
+    "web_search", "web_extract",
+    # Terminal + process management (desktop-gated read/close are harmless here)
+    "terminal", "process", "read_terminal", "close_terminal",
+    # File manipulation
+    "read_file", "write_file", "patch", "search_files",
+    # Code execution substrate
+    "execute_code",
+    # Skills loaders — the on-ramp to every deferred capability
+    "skills_list", "skill_view", "skill_manage",
+]
+
 # Webhook events may originate from untrusted third-party content (for example,
 # public PR titles/comments). Keep the default webhook toolset intentionally
 # constrained to avoid local file/system execution by prompt injection.

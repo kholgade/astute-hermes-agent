@@ -2378,6 +2378,24 @@ DEFAULT_CONFIG = {
         #                     never crammed into a chat bubble), apply with
         #                     /skills approve <id> or drop with /skills reject <id>.
         "write_approval": False,
+        # Where the compact skill index is placed in the request (issue #17).
+        #   "user_message" (default) — inject the index as a call-time user
+        #       message right after the system prompt, instead of baking it
+        #       into the cached system string. Keeps the system prefix lean and
+        #       lets the index be gated/varied per turn. The Anthropic adapter
+        #       merges it with the adjacent user turn, so alternation is safe.
+        #   "system" — legacy behaviour: append the index to the stable system
+        #       prompt (maximally cache-stable, but always present).
+        "index_placement": "user_message",
+        # Complexity-gate the index verbosity (issue #17). When true, turns the
+        # heuristic in agent/task_complexity.py classifies as "simple" get a
+        # names-only index (descriptions dropped; every skill still loadable via
+        # skill_view/skills_list); medium/complex turns get the full index.
+        # Only applies when index_placement is "user_message" (the system
+        # placement is cached and must stay byte-stable). Off by default:
+        # gating varies the index per turn, which trades some prompt-cache
+        # stability for fewer tokens on simple turns.
+        "index_complexity_gating": False,
         # Automatic skill disable (Issue #9). Keys must match what
         # agent/skill_auto_disable.py actually reads (threshold_days,
         # check_interval_hours) — see Issue #14.
@@ -2821,10 +2839,11 @@ DEFAULT_CONFIG = {
     # in the model-facing tools array with three bridge tools —
     # tool_search / tool_describe / tool_call — and surfaced on demand.
     #
-    # Core Hermes tools (terminal, read_file, write_file, patch,
-    # search_files, todo, memory, browser_*, etc.) are NEVER deferred.
-    # See tools/tool_search.py for full design notes and the
-    # openclaw-tool-search-report PDF in this PR for the rationale.
+    # By default core Hermes tools (terminal, read_file, write_file, patch,
+    # search_files, todo, memory, browser_*, etc.) are NEVER deferred — only
+    # MCP/plugin tools are. Set ``minimal_core`` to also defer specialized
+    # core tools (see below). See tools/tool_search.py for full design notes
+    # and the openclaw-tool-search-report PDF in this PR for the rationale.
     "tools": {
         "tool_search": {
             # "auto" (default) — activate only when deferrable tool schemas
@@ -2843,6 +2862,20 @@ DEFAULT_CONFIG = {
             "search_default_limit": 5,
             # Hard upper bound the model can request via ``limit``. Range 1..50.
             "max_search_limit": 20,
+            # minimal_core (default false): shrink the always-on tool set to a
+            # lean substrate — file (read/write/patch/search), terminal +
+            # process, execute_code, web_search/web_extract, and the skills
+            # loaders (skills_list/skill_view/skill_manage). Every other core
+            # tool (browser_*, vision_analyze, image_generate, memory, todo,
+            # clarify, session_search, delegate_task, cronjob, tts,
+            # computer_use, ...) becomes deferrable and is surfaced on demand
+            # through the bridges. This is the big lever for cutting the
+            # per-turn tool-schema token cost on minimal/headless deployments
+            # (issue #17). Requires ``enabled`` to be "auto" or "on"; with
+            # "auto" the specialized tools still only defer once their schemas
+            # cross ``threshold_pct``, so large-context models keep the full
+            # set until it actually matters.
+            "minimal_core": False,
         },
     },
 

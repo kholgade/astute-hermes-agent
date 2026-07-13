@@ -520,6 +520,48 @@ def _sync_failover_system_message(agent, api_messages, active_system_prompt):
     return sp
 
 
+def _build_skills_index_message(agent, current_user_message):
+    """Build the call-time skill-index user message, or None to inject nothing.
+
+    Returns None when the index belongs in the system prompt (legacy placement),
+    when there is no index to show, or — under complexity gating — when the
+    current turn is classified "simple" (the model can still reach every skill
+    via skills_list/skill_view). See skills.index_placement / issue #17.
+
+    Injecting nothing on some turns and something on others varies the cached
+    prefix; that cache cost is the documented trade-off of complexity gating,
+    which is off by default.
+    """
+    try:
+        from agent.system_prompt import (
+            _skills_index_placement,
+            _skills_index_complexity_gating,
+            build_skills_index_for_agent,
+        )
+        if _skills_index_placement() != "user_message":
+            return None
+        # Prefer the index stashed during system-prompt assembly; fall back to
+        # building it here so resumed sessions (system prompt restored from DB,
+        # no rebuild) still get the index injected (issue #17).
+        content = getattr(agent, "_skills_index_content", None)
+        if not content:
+            content = build_skills_index_for_agent(agent)
+            agent._skills_index_content = content or ""
+        if not content:
+            return None
+        if _skills_index_complexity_gating():
+            from agent.task_complexity import classify_task_complexity
+            msg = current_user_message if isinstance(current_user_message, str) else str(current_user_message or "")
+            if classify_task_complexity(msg) == "simple":
+                return None
+        return {"role": "user", "content": content}
+    except Exception:
+        # Resolution failure must never break the turn. Fall back to the stashed
+        # index if we have one, else inject nothing.
+        stashed = getattr(agent, "_skills_index_content", "") or ""
+        return {"role": "user", "content": stashed} if stashed else None
+
+
 def run_conversation(
     agent,
     user_message: str,
@@ -891,6 +933,19 @@ def run_conversation(
             sys_offset = 1 if (api_messages and api_messages[0].get("role") == "system") else 0
             for idx, pfm in enumerate(agent.prefill_messages):
                 api_messages.insert(sys_offset + idx, pfm.copy())
+
+        # Inject the skill index as a call-time user message when placement is
+        # "user_message" (the default — see skills.index_placement, issue #17).
+        # Same after-system / before-history pattern as prefill: it keeps the
+        # index out of the cached system string, and the Anthropic adapter's
+        # _merge_consecutive_roles folds it into the adjacent user turn so
+        # alternation is preserved. Byte-stable across turns, so upstream caches
+        # stay warm — unless complexity gating is on, which may drop it on turns
+        # classified "simple".
+        _skills_msg = _build_skills_index_message(agent, original_user_message)
+        if _skills_msg is not None:
+            _sys_off = 1 if (api_messages and api_messages[0].get("role") == "system") else 0
+            api_messages.insert(_sys_off, _skills_msg)
 
         # Apply Anthropic prompt caching for Claude models on native
         # Anthropic, OpenRouter, and third-party Anthropic-compatible
@@ -1397,6 +1452,7 @@ def run_conversation(
                             cost_usd=_cost,
                             duration_ms=api_duration * 1000,
                             error=None,
+                            request_payload=api_kwargs,
                         )
 
                 # Validate response shape before proceeding
