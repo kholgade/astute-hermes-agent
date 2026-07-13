@@ -891,7 +891,7 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
 
     # --- Signal: native attachment support via JSON-RPC attachments param ---
 
-    if platform == Platform.YUANBAO and media_files:
+    if platform.value == "yuanbao" and media_files:
         last_result = None
         for i, chunk in enumerate(chunks):
             is_last = (i == len(chunks) - 1)
@@ -971,7 +971,7 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
 
     last_result = None
     for chunk in chunks:
-        if platform == Platform.SLACK:
+        if platform.value == "slack":
             # Slack migrated to a bundled plugin (#41112); delivery flows
             # through the registry's standalone_sender_fn, which applies
             # mrkdwn formatting and posts via the Slack Web API.
@@ -991,10 +991,10 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
         elif platform == Platform.SMS:
             result = await _registry_standalone_send("sms", pconfig, chat_id, chunk, thread_id)
 
-        elif platform == Platform.BLUEBUBBLES:
+        elif platform.value == "bluebubbles":
             result = await _send_bluebubbles(pconfig.extra, chat_id, chunk)
 
-        elif platform == Platform.YUANBAO:
+        elif platform.value == "yuanbao":
             result = await _send_yuanbao(chat_id, chunk)
         else:
             # Plugin platform: route through the gateway's live adapter if
