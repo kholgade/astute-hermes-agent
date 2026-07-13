@@ -1528,7 +1528,21 @@ def init_agent(
 
     # API request/response logging configuration
     # Modes: disabled (default, no overhead) | redacted (production-safe) | debug (development)
-    agent._api_request_logging = _agent_section.get("api_request_logging", "disabled").lower()
+    # Supports both logging.api_requests config and legacy agent.api_request_logging
+    _logging_cfg = _agent_cfg.get("logging", {})
+    if isinstance(_logging_cfg, dict):
+        _api_requests_cfg = _logging_cfg.get("api_requests", {})
+        if isinstance(_api_requests_cfg, dict) and _api_requests_cfg.get("enabled"):
+            # Read mode from logging.api_requests config (new schema)
+            _mode = str(_api_requests_cfg.get("mode", "disabled")).lower()
+            agent._api_request_logging = _mode if _mode in ("disabled", "redacted", "debug") else "disabled"
+        else:
+            # Fall back to agent.api_request_logging (legacy support)
+            agent._api_request_logging = _agent_section.get("api_request_logging", "disabled").lower()
+    else:
+        # Fall back to agent.api_request_logging (legacy support)
+        agent._api_request_logging = _agent_section.get("api_request_logging", "disabled").lower()
+
     if agent._api_request_logging not in ("disabled", "redacted", "debug"):
         agent._api_request_logging = "disabled"
     agent._api_request_logging_errors_only = bool(_agent_section.get("api_request_logging_errors_only", False))
