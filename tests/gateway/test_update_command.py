@@ -390,10 +390,10 @@ class TestUpdateCommandPlatformGate:
 
     @pytest.mark.asyncio
     async def test_blocks_programmatic_interface(self, monkeypatch):
-        """``Platform.WEBHOOK`` is not a messaging platform and must be
+        """``Platform.LOCAL`` is not a messaging platform and must be
         blocked by the allowlist gate before any side effects fire."""
         runner = _make_runner()
-        event = _make_event(platform=Platform.WEBHOOK)
+        event = _make_event(platform=Platform.LOCAL)
         monkeypatch.setenv("HERMES_MANAGED", "")
 
         # Guard: platform gate must fire before any real subprocess spawn.
@@ -463,7 +463,7 @@ class TestUpdateCommandPlatformGate:
         """
         from gateway.run import GatewayRunner
 
-        assert Platform.SLACK not in GatewayRunner._UPDATE_ALLOWED_PLATFORMS
+        assert Platform.TELEGRAM not in GatewayRunner._UPDATE_ALLOWED_PLATFORMS
 
         from hermes_cli.plugins import PluginManager
         PluginManager().discover_and_load(force=True)
@@ -473,7 +473,7 @@ class TestUpdateCommandPlatformGate:
         assert mm_entry.allow_update_command is True
 
         runner = _make_runner()
-        event = _make_event(platform=Platform.SLACK)
+        event = _make_event(platform=Platform.TELEGRAM)
         monkeypatch.setenv("HERMES_MANAGED", "")
 
         with patch("subprocess.Popen"):
@@ -489,7 +489,7 @@ class TestUpdateCommandPlatformGate:
         """
         from gateway.run import GatewayRunner
 
-        assert Platform.HOMEASSISTANT not in GatewayRunner._UPDATE_ALLOWED_PLATFORMS
+        assert Platform.DISCORD not in GatewayRunner._UPDATE_ALLOWED_PLATFORMS
 
         from hermes_cli.plugins import PluginManager
         PluginManager().discover_and_load(force=True)
@@ -499,7 +499,7 @@ class TestUpdateCommandPlatformGate:
         assert ha_entry.allow_update_command is True
 
         runner = _make_runner()
-        event = _make_event(platform=Platform.HOMEASSISTANT)
+        event = _make_event(platform=Platform.DISCORD)
         monkeypatch.setenv("HERMES_MANAGED", "")
 
         with patch("subprocess.Popen"):

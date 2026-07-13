@@ -444,7 +444,7 @@ class TestSendVoiceReply:
         mock_adapter = AsyncMock()
         mock_adapter.send_voice = AsyncMock()
         event = _make_event()
-        event.source.platform = Platform.SLACK
+        event.source.platform = Platform.TELEGRAM
         runner.adapters[event.source.platform] = mock_adapter
 
         tts_result = json.dumps({"success": True, "file_path": "/tmp/test.mp3"})
