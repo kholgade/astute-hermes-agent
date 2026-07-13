@@ -542,11 +542,6 @@ export interface Translations {
     expiresIn: string;
   };
 
-  // ── Language switcher ──
-  language: {
-    switchTo: string;
-  };
-
   // ── Theme switcher ──
   theme: {
     title: string;

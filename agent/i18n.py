@@ -8,6 +8,7 @@ multi-language support.
 
 import logging
 import os
+import sysconfig
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,21 @@ DEFAULT_LANGUAGE = "en"
 
 
 def _locales_dir() -> Path:
-    """Return the directory containing locale YAML files."""
+    """Return the directory containing locale YAML files.
+
+    Resolution order, first existing wins:
+
+    1. ``HERMES_BUNDLED_LOCALES`` env var -- set by the Nix wrapper (or any
+       sealed-packaging system) to point at the installed catalog directory.
+    2. ``<repo-root>/locales`` -- source checkouts and ``pip install -e .``,
+       where the working tree sits next to ``agent/``.
+    3. ``<sysconfig data|purelib|platlib>/locales`` -- pip wheel installs.
+       setuptools ``data-files`` extracts ``locales/*.yaml`` under the
+       interpreter's ``data`` scheme; the other schemes are checked as a
+       safety net for nonstandard layouts. Regression guard for
+       #23943 / #27632 / #35374 -- without this, sealed installs (pip wheel,
+       Nix store venv) drop the catalog and t() surfaces raw key paths.
+    """
     env_override = os.getenv("HERMES_BUNDLED_LOCALES", "").strip()
     if env_override:
         candidate = Path(env_override)
@@ -29,6 +44,14 @@ def _locales_dir() -> Path:
     source_dir = Path(__file__).resolve().parent.parent / "locales"
     if source_dir.is_dir():
         return source_dir
+
+    for scheme in ("data", "purelib", "platlib"):
+        raw = sysconfig.get_path(scheme)
+        if not raw:
+            continue
+        candidate = Path(raw) / "locales"
+        if candidate.is_dir():
+            return candidate
 
     return source_dir
 

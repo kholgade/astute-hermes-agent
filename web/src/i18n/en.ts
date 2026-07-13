@@ -540,10 +540,6 @@ export const en: Translations = {
     expiresIn: "expires in {time}",
   },
 
-  language: {
-    switchTo: "Switch language",
-  },
-
   theme: {
     title: "Theme",
     switchTheme: "Switch theme",
