@@ -13,8 +13,10 @@ Three tiers are joined with ``\\n\\n``:
   guidance, computer-use guidance, nous subscription block, tool-use
   enforcement guidance + per-model operational guidance, skills prompt,
   alibaba model-name workaround, environment hints, platform hints.
-* ``context``  — caller-supplied ``system_message`` plus context files
-  (AGENTS.md / .cursorrules / etc.) discovered under ``TERMINAL_CWD``.
+* ``context``  — caller-supplied ``system_message`` only. Project context
+  files (AGENTS.md / CLAUDE.md / .cursorrules) are NEVER loaded into the
+  interactive system prompt: in production they don't serve the user's goal
+  and can add tens of thousands of tokens to every cached turn.
 * ``volatile`` — memory snapshot, USER.md profile, external memory
   provider block, timestamp/session/model/provider line.
 
@@ -197,9 +199,6 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # patch ``run_agent.get_toolset_for_tool`` and similar helpers, so
     # we resolve through ``_ra()`` to honor those patches.
     _r = _ra()
-
-    _system_prompt_mode = getattr(agent, "_system_prompt_mode", "optimized").lower().strip()
-    _include_context_files = _system_prompt_mode != "optimized"
 
     # Resolve the model's context window once so context-file caps can scale
     # to it (dynamic cap — see prompt_builder._dynamic_context_file_max_chars).
@@ -484,16 +483,11 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     if system_message is not None:
         context_parts.append(system_message)
 
-    if not agent.skip_context_files and _include_context_files:
-        # Prefer the configured TERMINAL_CWD (gateway mode). When unset (local
-        # CLI), None lets build_context_files_prompt fall back to the launch
-        # dir — the user's real cwd there, but the install dir for the gateway
-        # daemon, which is why the gateway sets TERMINAL_CWD.
-        context_files_prompt = _r.build_context_files_prompt(
-            cwd=resolve_context_cwd(), skip_soul=_soul_loaded,
-            context_length=_ctx_len)
-        if context_files_prompt:
-            context_parts.append(context_files_prompt)
+    # Context files (AGENTS.md / CLAUDE.md / .cursorrules) are NEVER loaded.
+    # In production they don't contribute to the user's goal and can add tens
+    # of thousands of tokens to every cached turn (e.g. a home-dir AGENTS.md
+    # inflating a bare "Hello" to 22K+ prompt tokens). They are intentionally
+    # excluded from the system prompt with no opt-in flag.
 
     # ── Volatile tier (changes per session/turn — never cached) ───
     volatile_parts: List[str] = []
