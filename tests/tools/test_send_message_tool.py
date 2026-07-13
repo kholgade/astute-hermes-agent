@@ -2228,78 +2228,13 @@ class TestForumProbeCache:
 # ---------------------------------------------------------------------------
 
 
-class _FakeSignalHttp:
-    """Stand-in for httpx.AsyncClient used as an async context manager.
-
-    Pops a response from the queue per `post` call. Each entry is either
-    a dict (returned from .json()) or an exception instance (raised).
-    Captures (url, payload) per call.
-    """
-
-    def __init__(self, responses):
-        self.responses = list(responses)
-        self.calls = []
-
-    def __call__(self, *_a, **_kw):
-        return self
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *_a):
-        return False
-
-    async def post(self, url, json=None):
-        self.calls.append({"url": url, "payload": json})
-        if not self.responses:
-            raise AssertionError("Unexpected extra POST")
-        item = self.responses.pop(0)
-        if isinstance(item, BaseException):
-            raise item
-        resp = SimpleNamespace(
-            raise_for_status=lambda: None,
-            json=lambda data=item: data,
-        )
-        return resp
+# Signal test helpers removed - Signal platform is consolidated
 
 
-def _install_signal_http(monkeypatch, fake):
-    """Patch httpx.AsyncClient at the module level so the lazy import in
-    _send_signal picks it up.
-    """
-    import httpx
-    monkeypatch.setattr(httpx, "AsyncClient", fake)
+# Orphaned test methods from TestSendViaAdapterStandaloneFallback removed -
+# this class tested plugin adapter functionality related to consolidated platforms
 
 
-def _patch_sendmsg_sleep_and_time(monkeypatch, capture: list):
-    """Mock asyncio.sleep + time.monotonic in the signal_rate_limit
-    module so the scheduler's acquire loop sees synthetic time advancing
-    during sleep calls, and report_rpc_duration sees the same clock.
-
-    Zero-second sleeps (event-loop yields from fake HTTP posts) are
-    delegated to the real asyncio.sleep so they don't pollute the
-    capture list.
-    """
-    import asyncio as _aio
-    _real_sleep = _aio.sleep
-    offset = [0.0]
-
-    async def fake_sleep(seconds):
-        if seconds > 0:
-            capture.append(seconds)
-            offset[0] += seconds
-        else:
-            await _real_sleep(0)
-
-    monkeypatch.setattr(
-        "gateway.platforms.signal_rate_limit.asyncio.sleep", fake_sleep
-    )
-    monkeypatch.setattr(
-        "gateway.platforms.signal_rate_limit.time.monotonic", lambda: offset[0]
-    )
-
-
-# (Orphaned test methods from TestSendViaAdapterStandaloneFallback removed -
 class TestCheckSendMessage:
     """The tool's check_fn governs whether the model sees ``send_message`` as
     callable for a given session. The four passing conditions are:
