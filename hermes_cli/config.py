@@ -1050,6 +1050,31 @@ DEFAULT_CONFIG = {
         # compounds over a long conversation.  Costs ~70 tokens in the cached
         # system prompt.  Set False to disable globally.
         "parallel_tool_call_guidance": True,
+        # System-prompt section gating (lean prompt).  Every block listed
+        # under system_prompt_sections is DISABLED BY DEFAULT to keep the
+        # system prompt minimal (target <5K incl. skills) — useful for
+        # headless/VPS deployments, local non-frontier models, and CLI-only
+        # usage that don't need them.  Each is an INDEPENDENT flag: the only
+        # way to include a block is to set its key to true.  There is NO
+        # master switch that turns them all back on — to restore the original
+        # verbose Hermes prompt you must enable every flag individually.
+        # lean_system_prompt is retained for forward-compat but no longer
+        # affects gating.
+        "lean_system_prompt": True,
+        "system_prompt_sections": {
+            "computer_use": False,        # macOS/desktop computer_use guidance
+            "google_guidance": False,     # Gemini/Gemma operational directives
+            "openai_guidance": False,     # GPT/Codex/Grok execution discipline
+            "tool_use_enforcement": False,  # "use your tools" enforcement block
+            "session_search": False,      # session_search recall guidance
+            "memory_guidance": False,     # persistent-memory guidance
+            "skills_guidance": False,     # how-to-use-skills guidance
+            "parallel_tool_calls": False, # batch-tool-calls guidance
+            "task_completion": False,     # finish-the-job guidance
+            "hermes_docs_pointer": False, # Hermes docs/skill pointer
+            "platform_hint": False,       # per-platform formatting hint
+            "steer_channel": False,       # mid-turn out-of-band steering note
+        },
         # Local-environment toolchain probe — surfaces Python/pip/uv/PEP-668
         # state in the system prompt when something non-default is detected
         # (e.g. python3 has no pip module, pip→python version mismatch, PEP
