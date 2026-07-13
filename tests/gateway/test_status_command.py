@@ -387,6 +387,7 @@ async def test_handle_message_persists_agent_token_counts(monkeypatch):
     )
 
 
+@pytest.mark.asyncio
 async def test_handle_message_discards_stale_result_after_session_invalidation(monkeypatch):
     import gateway.run as gateway_run
 
