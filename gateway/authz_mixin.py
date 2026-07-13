@@ -273,14 +273,6 @@ class GatewayAuthorizationMixin:
         5. Default: deny
         """
         from gateway.run import logger
-        # Home Assistant events are system-generated (state changes), not
-        # user-initiated messages.  The HASS_TOKEN already authenticates the
-        # connection, so HA events are always authorized.
-        # Webhook events are authenticated via HMAC signature validation in
-        # the adapter itself — no user allowlist applies.
-        if source.platform in {Platform.HOMEASSISTANT, Platform.WEBHOOK}:
-            return True
-
         # Relay (and any adapter whose authorization is enforced by a trusted
         # authenticated upstream): the Team Gateway connector authenticates this
         # gateway's WS with a per-instance secret and resolves owner-only author
@@ -350,7 +342,6 @@ class GatewayAuthorizationMixin:
         platform_allow_bots_map = {
             Platform.DISCORD: "DISCORD_ALLOW_BOTS",
             Platform.TELEGRAM: "TELEGRAM_ALLOW_BOTS",
-            Platform.SLACK: "SLACK_ALLOW_BOTS",
         }
         if getattr(source, "is_bot", False):
             allow_bots_var = platform_allow_bots_map.get(source.platform)
@@ -365,7 +356,6 @@ class GatewayAuthorizationMixin:
             Platform.DISCORD: "DISCORD_ALLOWED_USERS",
             Platform.WHATSAPP: "WHATSAPP_ALLOWED_USERS",
             Platform.WHATSAPP_CLOUD: "WHATSAPP_CLOUD_ALLOWED_USERS",
-            Platform.SLACK: "SLACK_ALLOWED_USERS",
             Platform.EMAIL: "EMAIL_ALLOWED_USERS",
             Platform.SMS: "SMS_ALLOWED_USERS",
         }
@@ -380,7 +370,6 @@ class GatewayAuthorizationMixin:
             Platform.DISCORD: "DISCORD_ALLOW_ALL_USERS",
             Platform.WHATSAPP: "WHATSAPP_ALLOW_ALL_USERS",
             Platform.WHATSAPP_CLOUD: "WHATSAPP_CLOUD_ALLOW_ALL_USERS",
-            Platform.SLACK: "SLACK_ALLOW_ALL_USERS",
             Platform.EMAIL: "EMAIL_ALLOW_ALL_USERS",
             Platform.SMS: "SMS_ALLOW_ALL_USERS",
         }
@@ -652,7 +641,6 @@ class GatewayAuthorizationMixin:
                 Platform.DISCORD:  "DISCORD_ALLOWED_USERS",
                 Platform.WHATSAPP: "WHATSAPP_ALLOWED_USERS",
                 Platform.WHATSAPP_CLOUD: "WHATSAPP_CLOUD_ALLOWED_USERS",
-                Platform.SLACK:    "SLACK_ALLOWED_USERS",
                 Platform.EMAIL:    "EMAIL_ALLOWED_USERS",
                 Platform.SMS:      "SMS_ALLOWED_USERS",
             }
