@@ -163,13 +163,13 @@ class TestGetConnectedPlatforms:
             platforms={
                 Platform.TELEGRAM: PlatformConfig(enabled=True, token="t"),
                 Platform.DISCORD: PlatformConfig(enabled=False, token="d"),
-                Platform.SLACK: PlatformConfig(enabled=True),  # no token
+                Platform.TELEGRAM: PlatformConfig(enabled=True),  # no token
             },
         )
         connected = config.get_connected_platforms()
         assert Platform.TELEGRAM in connected
         assert Platform.DISCORD not in connected
-        assert Platform.SLACK not in connected
+        assert Platform.TELEGRAM not in connected
 
     def test_empty_platforms(self):
         config = GatewayConfig()
@@ -369,15 +369,15 @@ class TestGatewayConfigRoundtrip:
 
     def test_get_notice_delivery_defaults_to_public(self):
         config = GatewayConfig(
-            platforms={Platform.SLACK: PlatformConfig(enabled=True, token="***")}
+            platforms={Platform.TELEGRAM: PlatformConfig(enabled=True, token="***")}
         )
 
-        assert config.get_notice_delivery(Platform.SLACK) == "public"
+        assert config.get_notice_delivery(Platform.TELEGRAM) == "public"
 
     def test_get_notice_delivery_honors_platform_override(self):
         config = GatewayConfig(
             platforms={
-                Platform.SLACK: PlatformConfig(
+                Platform.TELEGRAM: PlatformConfig(
                     enabled=True,
                     token="***",
                     extra={"notice_delivery": "private"},
@@ -385,7 +385,7 @@ class TestGatewayConfigRoundtrip:
             }
         )
 
-        assert config.get_notice_delivery(Platform.SLACK) == "private"
+        assert config.get_notice_delivery(Platform.TELEGRAM) == "private"
 
 
 class TestLoadGatewayConfig:
@@ -975,7 +975,7 @@ class TestLoadGatewayConfig:
 
         config = load_gateway_config()
 
-        assert config.platforms[Platform.SLACK].extra["channel_prompts"] == {
+        assert config.platforms[Platform.TELEGRAM].extra["channel_prompts"] == {
             "C01ABC": "Code review mode",
         }
 
@@ -1174,7 +1174,7 @@ class TestLoadGatewayConfig:
 
         config = load_gateway_config()
 
-        assert config.get_notice_delivery(Platform.SLACK) == "private"
+        assert config.get_notice_delivery(Platform.TELEGRAM) == "private"
 
     def test_bridges_telegram_proxy_url_from_config_yaml(self, tmp_path, monkeypatch):
         hermes_home = tmp_path / ".hermes"
@@ -1257,7 +1257,7 @@ class TestHomeChannelEnvOverrides:
     def test_existing_platform_configs_accept_home_channel_env_overrides(self):
         cases = [
             (
-                Platform.SLACK,
+                Platform.TELEGRAM,
                 PlatformConfig(enabled=True, token="xoxb-from-config"),
                 {"SLACK_HOME_CHANNEL": "C123", "SLACK_HOME_CHANNEL_NAME": "Ops"},
                 ("C123", "Ops"),

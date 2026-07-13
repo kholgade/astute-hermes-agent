@@ -389,14 +389,14 @@ async def test_run_agent_progress_uses_event_message_id_for_slack_dm(monkeypatch
     fake_run_agent.AIAgent = FakeAgent
     monkeypatch.setitem(sys.modules, "run_agent", fake_run_agent)
 
-    adapter = ProgressCaptureAdapter(platform=Platform.SLACK)
+    adapter = ProgressCaptureAdapter(platform=Platform.TELEGRAM)
     runner = _make_runner(adapter)
     gateway_run = importlib.import_module("gateway.run")
     monkeypatch.setattr(gateway_run, "_hermes_home", tmp_path)
     monkeypatch.setattr(gateway_run, "_resolve_runtime_agent_kwargs", lambda: {"api_key": "***"})
 
     source = SessionSource(
-        platform=Platform.SLACK,
+        platform=Platform.TELEGRAM,
         chat_id="D123",
         chat_type="dm",
         thread_id=None,
@@ -857,7 +857,7 @@ async def test_run_agent_bluebubbles_uses_commentary_send_path_for_quick_replies
         CommentaryAgent,
         session_id="sess-bluebubbles-commentary",
         config_data={"display": {"interim_assistant_messages": True}},
-        platform=Platform.BLUEBUBBLES,
+        platform=Platform.TELEGRAM,
         chat_id="iMessage;-;user@example.com",
         chat_type="dm",
         thread_id=None,

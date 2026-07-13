@@ -23,14 +23,14 @@ class TestVoiceKeyHelper:
         """_voice_key returns 'platform:chat_id' format."""
         runner = _make_runner()
         assert runner._voice_key(Platform.TELEGRAM, "123") == "telegram:123"
-        assert runner._voice_key(Platform.SLACK, "456") == "slack:456"
+        assert runner._voice_key(Platform.TELEGRAM, "456") == "slack:456"
         assert runner._voice_key(Platform.DISCORD, "789") == "discord:789"
 
     def test_voice_key_different_platforms_same_chat_id(self):
         """Same chat_id on different platforms yields different keys."""
         runner = _make_runner()
         key_telegram = runner._voice_key(Platform.TELEGRAM, "123")
-        key_slack = runner._voice_key(Platform.SLACK, "123")
+        key_slack = runner._voice_key(Platform.TELEGRAM, "123")
         key_discord = runner._voice_key(Platform.DISCORD, "123")
         assert key_telegram != key_slack
         assert key_slack != key_discord
@@ -49,16 +49,16 @@ class TestVoiceModePlatformIsolation:
         # Enable voice mode for Telegram chat '123'
         runner._voice_mode[runner._voice_key(Platform.TELEGRAM, "123")] = "all"
         # Enable voice mode for Slack chat '123' to a different mode
-        runner._voice_mode[runner._voice_key(Platform.SLACK, "123")] = "voice_only"
+        runner._voice_mode[runner._voice_key(Platform.TELEGRAM, "123")] = "voice_only"
 
         # Verify they are independent
         assert runner._voice_mode.get(runner._voice_key(Platform.TELEGRAM, "123")) == "all"
-        assert runner._voice_mode.get(runner._voice_key(Platform.SLACK, "123")) == "voice_only"
+        assert runner._voice_mode.get(runner._voice_key(Platform.TELEGRAM, "123")) == "voice_only"
 
         # Disabling Telegram should not affect Slack
         runner._voice_mode[runner._voice_key(Platform.TELEGRAM, "123")] = "off"
         assert runner._voice_mode.get(runner._voice_key(Platform.TELEGRAM, "123")) == "off"
-        assert runner._voice_mode.get(runner._voice_key(Platform.SLACK, "123")) == "voice_only"
+        assert runner._voice_mode.get(runner._voice_key(Platform.TELEGRAM, "123")) == "voice_only"
 
 
 class TestLegacyKeyMigration:

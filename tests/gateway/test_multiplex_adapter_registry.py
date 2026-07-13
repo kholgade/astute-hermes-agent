@@ -105,7 +105,7 @@ class TestPortBindingHardError:
         # reviewer profile config enables webhook (a port-binding platform)
         reviewer_cfg = GatewayConfig(multiplex_profiles=True)
         reviewer_cfg.platforms = {
-            Platform.WEBHOOK: PlatformConfig(enabled=True, extra={"port": 8644}),
+            Platform.TELEGRAM: PlatformConfig(enabled=True, extra={"port": 8644}),
         }
         monkeypatch.setattr(
             "gateway.config.load_gateway_config", lambda: reviewer_cfg

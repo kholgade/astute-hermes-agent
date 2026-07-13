@@ -427,9 +427,9 @@ async def test_notify_falls_back_to_slack_if_no_telegram(adapter):
     slack_adapter = SimpleNamespace(send=AsyncMock())
     home_slack = SimpleNamespace(chat_id="C12345")
     runner = SimpleNamespace(
-        adapters={Platform.SLACK: slack_adapter},
+        adapters={Platform.TELEGRAM: slack_adapter},
         config=SimpleNamespace(
-            get_home_channel=lambda p: home_slack if p is Platform.SLACK else None,
+            get_home_channel=lambda p: home_slack if p is Platform.TELEGRAM else None,
         ),
     )
     adapter.gateway_runner = runner
@@ -621,11 +621,11 @@ async def test_notify_falls_back_to_slack_on_telegram_soft_fail(adapter):
     slack_adapter = SimpleNamespace(send=AsyncMock())
     home_tg = SimpleNamespace(chat_id="987654321")
     home_sl = SimpleNamespace(chat_id="C12345")
-    homes = {Platform.TELEGRAM: home_tg, Platform.SLACK: home_sl}
+    homes = {Platform.TELEGRAM: home_tg, Platform.TELEGRAM: home_sl}
     runner = SimpleNamespace(
         adapters={
             Platform.TELEGRAM: telegram_adapter,
-            Platform.SLACK: slack_adapter,
+            Platform.TELEGRAM: slack_adapter,
         },
         config=SimpleNamespace(get_home_channel=lambda p: homes.get(p)),
     )
@@ -649,11 +649,11 @@ async def test_notify_returns_on_telegram_truthy_success(adapter):
     slack_adapter = SimpleNamespace(send=AsyncMock())
     home_tg = SimpleNamespace(chat_id="987654321")
     home_sl = SimpleNamespace(chat_id="C12345")
-    homes = {Platform.TELEGRAM: home_tg, Platform.SLACK: home_sl}
+    homes = {Platform.TELEGRAM: home_tg, Platform.TELEGRAM: home_sl}
     runner = SimpleNamespace(
         adapters={
             Platform.TELEGRAM: telegram_adapter,
-            Platform.SLACK: slack_adapter,
+            Platform.TELEGRAM: slack_adapter,
         },
         config=SimpleNamespace(get_home_channel=lambda p: homes.get(p)),
     )

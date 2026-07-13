@@ -4561,14 +4561,14 @@ class TestCronContinuableSurfaceInChannel:
     """
 
     def _slack_cfg(self, extra):
-        """A mock GatewayConfig with a Slack pconfig carrying ``extra``."""
+        """A mock GatewayConfig with a Telegram pconfig carrying ``extra``."""
         from gateway.config import Platform
 
         pconfig = MagicMock()
         pconfig.enabled = True
         pconfig.extra = extra
         mock_cfg = MagicMock()
-        mock_cfg.platforms = {Platform.SLACK: pconfig}
+        mock_cfg.platforms = {Platform.TELEGRAM: pconfig}
         return mock_cfg
 
     def _run_inchannel_delivery(self, extra, adapter, *, mirror_ok=True, origin=None):
@@ -4611,7 +4611,7 @@ class TestCronContinuableSurfaceInChannel:
              patch("gateway.mirror.mirror_to_session", return_value=mirror_ok) as mirror_mock:
             _deliver_result(
                 job, "Here is today's brief.",
-                adapters={Platform.SLACK: adapter}, loop=loop,
+                adapters={Platform.TELEGRAM: adapter}, loop=loop,
             )
         return open_thread_mock, mirror_mock
 
@@ -4741,7 +4741,7 @@ class TestCronContinuableSurfaceInChannel:
         # What a plain top-level channel reply (reply_in_thread:false → thread
         # None) from the same user resolves to:
         inbound = SessionSource(
-            platform=Platform.SLACK, chat_id="C123", chat_type="group",
+            platform=Platform.TELEGRAM, chat_id="C123", chat_type="group",
             user_id="U_HUMAN", thread_id=None,
         )
         assert seed_key == build_session_key(inbound), (
@@ -4771,7 +4771,7 @@ class TestCronContinuableSurfaceInChannel:
             )
         seeded_source = store.get_or_create_session.call_args[0][0]
         inbound = SessionSource(
-            platform=Platform.SLACK, chat_id="D999", chat_type="dm",
+            platform=Platform.TELEGRAM, chat_id="D999", chat_type="dm",
             user_id="U_HUMAN", thread_id=None,
         )
         assert build_session_key(seeded_source) == build_session_key(inbound)

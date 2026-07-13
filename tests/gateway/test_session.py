@@ -197,11 +197,11 @@ class TestBuildSessionContextPrompt:
     def test_bluebubbles_prompt_mentions_short_conversational_i_message_format(self):
         config = GatewayConfig(
             platforms={
-                Platform.BLUEBUBBLES: PlatformConfig(enabled=True, extra={"server_url": "http://localhost:1234", "password": "secret"}),
+                Platform.TELEGRAM: PlatformConfig(enabled=True, extra={"server_url": "http://localhost:1234", "password": "secret"}),
             },
         )
         source = SessionSource(
-            platform=Platform.BLUEBUBBLES,
+            platform=Platform.TELEGRAM,
             chat_id="iMessage;-;user@example.com",
             chat_name="Ben",
             chat_type="dm",

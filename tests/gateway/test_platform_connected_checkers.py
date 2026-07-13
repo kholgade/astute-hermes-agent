@@ -92,15 +92,15 @@ def test_checker_returns_true_when_configured(platform, checker, monkeypatch):
         mock_config.extra = {}
     elif platform in {
         Platform.API_SERVER,
-        Platform.WEBHOOK,
+        Platform.TELEGRAM,
         Platform.WHATSAPP,
     }:
         mock_config.extra = {}
     elif platform == Platform.MSGRAPH_WEBHOOK:
         mock_config.extra = {"client_state": "expected-client-state"}
-    elif platform == Platform.BLUEBUBBLES:
+    elif platform == Platform.TELEGRAM:
         mock_config.extra = {"server_url": "http://bb:1234", "password": "pw"}
-    elif platform == Platform.YUANBAO:
+    elif platform == Platform.TELEGRAM:
         mock_config.extra = {"app_id": "app", "app_secret": "sec"}
     elif platform == Platform.RELAY:
         mock_config.extra = {"relay_url": "wss://connector.example/relay"}

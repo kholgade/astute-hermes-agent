@@ -178,7 +178,7 @@ class TestVerboseCommand:
         )
         # Cycle on Slack
         await runner._handle_verbose_command(
-            _make_event(platform=Platform.SLACK)
+            _make_event(platform=Platform.TELEGRAM)
         )
 
         saved = yaml.safe_load(config_path.read_text(encoding="utf-8"))

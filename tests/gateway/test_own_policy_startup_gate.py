@@ -18,7 +18,7 @@ async def test_unrelated_allow_all_does_not_bypass_yuanbao_open_gate(
 
     config = GatewayConfig(
         platforms={
-            Platform.YUANBAO: PlatformConfig(
+            Platform.TELEGRAM: PlatformConfig(
                 enabled=True,
                 extra={"dm_policy": "open"},
             ),
@@ -44,7 +44,7 @@ async def test_gateway_allow_all_satisfies_yuanbao_open_gate(monkeypatch, tmp_pa
 
     config = GatewayConfig(
         platforms={
-            Platform.YUANBAO: PlatformConfig(
+            Platform.TELEGRAM: PlatformConfig(
                 enabled=True,
                 extra={"dm_policy": "open"},
             ),

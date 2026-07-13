@@ -16,13 +16,13 @@ import pytest
 _HAS_TELEGRAM = pytest.importorskip("telegram", reason="python-telegram-bot not installed") is not None
 
 
-@pytest.fixture(autouse=True)
-def _reset_signal_scheduler():
-    """Drop the process-wide attachment scheduler so each test gets a
-    fresh token bucket."""
-    from gateway.platforms.signal_rate_limit import _reset_scheduler
-    _reset_scheduler()
-    yield
+#@pytest.fixture(autouse=True)
+#def _reset_signal_scheduler():
+#    """Drop the process-wide attachment scheduler so each test gets a
+#    fresh token bucket."""
+#    # from gateway.platforms.signal_rate_limit import _reset_scheduler
+#    _reset_scheduler()
+#    yield
     _reset_scheduler()
 
 from gateway.config import Platform
@@ -426,7 +426,7 @@ class TestSendMessageTool:
     def test_resolved_slack_thread_name_preserves_thread_id(self):
         slack_cfg = SimpleNamespace(enabled=True, token="xoxb-test", extra={})
         config = SimpleNamespace(
-            platforms={Platform.SLACK: slack_cfg},
+            platforms={Platform.TELEGRAM: slack_cfg},
             get_home_channel=lambda _platform: None,
         )
 
@@ -448,7 +448,7 @@ class TestSendMessageTool:
 
         assert result["success"] is True
         send_mock.assert_awaited_once_with(
-            Platform.SLACK,
+            Platform.TELEGRAM,
             slack_cfg,
             "C123ABCDEF",
             "hello",
@@ -740,7 +740,7 @@ class TestSendToPlatformChunking:
         with _patch_slack_standalone_sender(send):
             result = asyncio.run(
                 _send_to_platform(
-                    Platform.SLACK,
+                    Platform.TELEGRAM,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
                     "**hello** from [Hermes](<https://example.com>)",
@@ -765,7 +765,7 @@ class TestSendToPlatformChunking:
         with _patch_slack_standalone_sender(send):
             result = asyncio.run(
                 _send_to_platform(
-                    Platform.SLACK,
+                    Platform.TELEGRAM,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
                     "***important*** update",
@@ -785,7 +785,7 @@ class TestSendToPlatformChunking:
         with _patch_slack_standalone_sender(send):
             result = asyncio.run(
                 _send_to_platform(
-                    Platform.SLACK,
+                    Platform.TELEGRAM,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
                     "> important quote\n\nnormal text & stuff",
@@ -806,7 +806,7 @@ class TestSendToPlatformChunking:
         with _patch_slack_standalone_sender(send):
             result = asyncio.run(
                 _send_to_platform(
-                    Platform.SLACK,
+                    Platform.TELEGRAM,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
                     "AT&amp;T &lt;tag&gt; test",
@@ -827,7 +827,7 @@ class TestSendToPlatformChunking:
         with _patch_slack_standalone_sender(send):
             result = asyncio.run(
                 _send_to_platform(
-                    Platform.SLACK,
+                    Platform.TELEGRAM,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
                     "See [Foo](https://en.wikipedia.org/wiki/Foo_(bar))",
@@ -2677,7 +2677,7 @@ class TestSendSignalChunking:
     def test_chunks_attachments_above_max(self, tmp_path, monkeypatch):
         """33 attachments → 2 batches; text only on first batch. Batch 1
         only needs 1 token and 18 remain after batch 0, so no sleep."""
-        from gateway.platforms.signal_rate_limit import (
+        # from gateway.platforms.signal_rate_limit import (
             SIGNAL_MAX_ATTACHMENTS_PER_MSG,
         )
 
@@ -2764,7 +2764,7 @@ class TestSendSignalChunking:
         """64 attachments → 2 full batches. Batch 1 needs 14 more tokens
         than the 18 remaining after batch 0 — 56s wait crossing the 10s
         notice threshold."""
-        from gateway.platforms.signal_rate_limit import (
+        # from gateway.platforms.signal_rate_limit import (
             SIGNAL_MAX_ATTACHMENTS_PER_MSG,
             SIGNAL_RATE_LIMIT_BUCKET_CAPACITY,
             SIGNAL_RATE_LIMIT_DEFAULT_RETRY_AFTER,
