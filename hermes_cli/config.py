@@ -2353,6 +2353,11 @@ DEFAULT_CONFIG = {
         #                     never crammed into a chat bubble), apply with
         #                     /skills approve <id> or drop with /skills reject <id>.
         "write_approval": False,
+        # Automatic skill disable (Issue #9)
+        "auto_disable": {
+            "enabled": True,  # Enable automatic disabling of unused skills
+            "inactive_days": 30,  # Disable skills unused for this many days
+        },
     },
 
     # Curator — background skill maintenance.
@@ -2403,6 +2408,16 @@ DEFAULT_CONFIG = {
             "enabled": True,
             "keep": 5,  # retain last N regular snapshots
         },
+    },
+
+    # Cron job model/provider pinning (Issue #11)
+    # Cron jobs can pin to specific models/providers to prevent accidental spend
+    # if global defaults change. Pinned crons always use the pinned model/provider.
+    # Unpinned crons fail-closed if defaults drift (prevents silent spend changes).
+    "cron": {
+        "primary_spend_protection": True,  # Enable drift guard for unpinned crons
+        "pin_model": False,  # Pin model when creating crons (CLI default)
+        "pin_provider": False,  # Pin provider when creating crons (CLI default)
     },
 
     # Honcho AI-native memory -- reads ~/.honcho/config.json as single source of truth.
@@ -2809,6 +2824,13 @@ DEFAULT_CONFIG = {
         "level": "INFO",       # Minimum level for agent.log: DEBUG, INFO, WARNING
         "max_size_mb": 5,      # Max size per log file before rotation
         "backup_count": 3,     # Number of rotated backup files to keep
+        # API request/response logging (Issue #6)
+        "api_requests": {
+            "enabled": False,  # Enable full API request/response logging
+            "mode": "disabled",  # "disabled" (off), "redacted" (safe), "debug" (full)
+            # "redacted" removes sensitive fields (API keys, auth headers)
+            # "debug" logs everything (use only for development/troubleshooting)
+        },
     },
 
     # Remotely-hosted model catalog manifest.  When enabled, the CLI fetches
