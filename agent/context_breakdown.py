@@ -107,7 +107,8 @@ def compute_session_context_breakdown(
         # the stable system string. build_system_prompt_parts stashes the
         # rendered index on the agent, so account for it here regardless of
         # placement — otherwise the breakdown under-reports Skills as zero.
-        skills_index = getattr(agent, "_skills_index_content", "") or ""
+        _stashed = getattr(agent, "_skills_index_content", "")
+        skills_index = _stashed if isinstance(_stashed, str) else ""
 
     memory_block, user_block = _memory_blocks(agent)
     memory_text = "\n\n".join(part for part in (memory_block, user_block) if part).strip()

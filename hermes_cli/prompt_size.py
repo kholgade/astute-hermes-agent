@@ -83,7 +83,8 @@ def compute_prompt_breakdown(platform: str = "cli") -> Dict[str, Any]:
     skills_match = _SKILLS_BLOCK_RE.search(stable)
     skills_index = skills_match.group(0) if skills_match else ""
     if not skills_index:
-        skills_index = getattr(agent, "_skills_index_content", "") or ""
+        _stashed = getattr(agent, "_skills_index_content", "")
+        skills_index = _stashed if isinstance(_stashed, str) else ""
 
     # Memory + user profile live in the volatile tier. We re-derive their
     # blocks directly from the memory store so the numbers are attributable
