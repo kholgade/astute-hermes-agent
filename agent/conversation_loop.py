@@ -1397,6 +1397,7 @@ def run_conversation(
                             cost_usd=_cost,
                             duration_ms=api_duration * 1000,
                             error=None,
+                            request_payload=api_kwargs,
                         )
 
                 # Validate response shape before proceeding
