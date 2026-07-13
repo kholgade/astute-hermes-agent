@@ -2378,6 +2378,24 @@ DEFAULT_CONFIG = {
         #                     never crammed into a chat bubble), apply with
         #                     /skills approve <id> or drop with /skills reject <id>.
         "write_approval": False,
+        # Where the compact skill index is placed in the request (issue #17).
+        #   "user_message" (default) — inject the index as a call-time user
+        #       message right after the system prompt, instead of baking it
+        #       into the cached system string. Keeps the system prefix lean and
+        #       lets the index be gated/varied per turn. The Anthropic adapter
+        #       merges it with the adjacent user turn, so alternation is safe.
+        #   "system" — legacy behaviour: append the index to the stable system
+        #       prompt (maximally cache-stable, but always present).
+        "index_placement": "user_message",
+        # Complexity-gate the index verbosity (issue #17). When true, turns the
+        # heuristic in agent/task_complexity.py classifies as "simple" get a
+        # names-only index (descriptions dropped; every skill still loadable via
+        # skill_view/skills_list); medium/complex turns get the full index.
+        # Only applies when index_placement is "user_message" (the system
+        # placement is cached and must stay byte-stable). Off by default:
+        # gating varies the index per turn, which trades some prompt-cache
+        # stability for fewer tokens on simple turns.
+        "index_complexity_gating": False,
         # Automatic skill disable (Issue #9). Keys must match what
         # agent/skill_auto_disable.py actually reads (threshold_days,
         # check_interval_hours) — see Issue #14.
