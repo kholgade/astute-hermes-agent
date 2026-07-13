@@ -14,6 +14,35 @@ from gateway.config import Platform, PlatformConfig, StreamingConfig
 from gateway.platforms.base import BasePlatformAdapter, MessageEvent, MessageType, SendResult
 from gateway.session import SessionSource
 
+
+class ProgressCaptureAdapter(BasePlatformAdapter):
+    def __init__(self, platform=Platform.TELEGRAM):
+        super().__init__(PlatformConfig(enabled=True, token="***"), platform)
+        self.sent = []
+        self.edits = []
+        self.typing = []
+
+    async def connect(self, *, is_reconnect: bool = False) -> bool:
+        return True
+
+    async def disconnect(self) -> None:
+        return None
+
+    async def send(self, chat_id, content, reply_to=None, metadata=None) -> SendResult:
+        self.sent.append({"chat_id": chat_id, "content": content})
+        return SendResult(success=True, message_id="progress-1")
+
+    async def edit_message(self, chat_id, message_id, content) -> SendResult:
+        self.edits.append({"message_id": message_id, "content": content})
+        return SendResult(success=True, message_id=message_id)
+
+    async def send_typing(self, chat_id, metadata=None):
+        self.typing.append({"chat_id": chat_id})
+
+    async def get_chat_info(self, chat_id):
+        return {"id": chat_id, "name": "test"}
+
+
 class SmallLimitProgressAdapter(ProgressCaptureAdapter):
     """Adapter with a tiny platform limit to exercise progress rollover."""
 

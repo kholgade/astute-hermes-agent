@@ -149,7 +149,7 @@ class TestSessionSourceDescription:
 
     def test_unknown_chat_type_uses_name(self):
         source = SessionSource(
-            platform=Platform.SLACK, chat_id="C01",
+            platform=Platform.DISCORD, chat_id="C01",
             chat_type="forum", chat_name="Questions",
         )
         assert "Questions" in source.description
@@ -280,11 +280,11 @@ class TestBuildSessionContextPrompt:
     def test_slack_prompt_includes_platform_notes(self):
         config = GatewayConfig(
             platforms={
-                Platform.SLACK: PlatformConfig(enabled=True, token="fake"),
+                Platform.DISCORD: PlatformConfig(enabled=True, token="fake"),
             },
         )
         source = SessionSource(
-            platform=Platform.SLACK,
+            platform=Platform.DISCORD,
             chat_id="C123",
             chat_name="general",
             chat_type="group",
