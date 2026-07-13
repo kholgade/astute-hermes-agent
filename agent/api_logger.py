@@ -17,8 +17,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from utils import atomic_json_write
-
 logger = logging.getLogger(__name__)
 
 
@@ -107,10 +105,13 @@ def log_api_request(
     # Truncate large fields
     entry = _truncate_large_fields(entry)
 
-    # Write to log file
+    # Write to log file (JSONL format - one JSON per line)
     log_path = _get_session_log_path(agent, "requests")
     try:
-        atomic_json_write(log_path, entry, append=True, default=str)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a") as f:
+            json.dump(entry, f, default=str)
+            f.write("\n")
     except Exception as e:
         logger.warning(f"Failed to write API request log to {log_path}: {e}")
 
@@ -173,10 +174,13 @@ def log_token_metrics(
         "error": str(error) if error else None,
     }
 
-    # Write to log file
+    # Write to log file (JSONL format - one JSON per line)
     log_path = _get_session_log_path(agent, "metrics")
     try:
-        atomic_json_write(log_path, entry, append=True, default=str)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a") as f:
+            json.dump(entry, f, default=str)
+            f.write("\n")
     except Exception as e:
         logger.warning(f"Failed to write API token metrics log to {log_path}: {e}")
 
