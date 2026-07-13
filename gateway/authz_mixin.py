@@ -368,7 +368,6 @@ class GatewayAuthorizationMixin:
             Platform.SLACK: "SLACK_ALLOWED_USERS",
             Platform.EMAIL: "EMAIL_ALLOWED_USERS",
             Platform.SMS: "SMS_ALLOWED_USERS",
-            Platform.WECOM: "WECOM_ALLOWED_USERS",
         }
         platform_group_user_env_map = {
             Platform.TELEGRAM: "TELEGRAM_GROUP_ALLOWED_USERS",
@@ -384,7 +383,6 @@ class GatewayAuthorizationMixin:
             Platform.SLACK: "SLACK_ALLOW_ALL_USERS",
             Platform.EMAIL: "EMAIL_ALLOW_ALL_USERS",
             Platform.SMS: "SMS_ALLOW_ALL_USERS",
-            Platform.WECOM: "WECOM_ALLOW_ALL_USERS",
         }
 
         # Plugin platforms: check the registry for auth env var names
@@ -657,7 +655,6 @@ class GatewayAuthorizationMixin:
                 Platform.SLACK:    "SLACK_ALLOWED_USERS",
                 Platform.EMAIL:    "EMAIL_ALLOWED_USERS",
                 Platform.SMS:      "SMS_ALLOWED_USERS",
-                Platform.WECOM:    "WECOM_ALLOWED_USERS",
             }
             platform_group_env_map = {
                 Platform.TELEGRAM: (
