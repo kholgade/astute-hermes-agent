@@ -2970,15 +2970,21 @@ def run_job(
         # any axis whose creation-time resolution failed) behaves exactly as
         # before — the guard never engages for it. Pinned axes are unaffected.
         _drift: list[str] = []
+
+        # Explicitly check if job is pinned FIRST — if either axis is pinned,
+        # skip the entire drift guard (pinned jobs always run with their values).
+        _is_provider_pinned = bool((job.get("provider") or "").strip())
+        _is_model_pinned = bool((job.get("model") or "").strip())
+
         _provider_snapshot = (job.get("provider_snapshot") or "").strip().lower()
-        if _provider_snapshot and not (job.get("provider") or "").strip():
+        if _provider_snapshot and not _is_provider_pinned:
             _current_provider = str(runtime.get("provider") or "").strip().lower()
             if _current_provider and _current_provider != _provider_snapshot:
                 _drift.append(
                     f"provider '{_provider_snapshot}' -> '{_current_provider}'"
                 )
         _model_snapshot = (job.get("model_snapshot") or "").strip().lower()
-        if _model_snapshot and not (job.get("model") or "").strip():
+        if _model_snapshot and not _is_model_pinned:
             _current_model = str(model or "").strip().lower()
             if _current_model and _current_model != _model_snapshot:
                 _drift.append(

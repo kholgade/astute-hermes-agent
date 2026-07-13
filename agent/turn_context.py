@@ -114,6 +114,12 @@ class TurnContext:
     plugin_user_context: str = ""
     # External-memory prefetch result, reused across loop iterations.
     ext_prefetch_cache: str = ""
+    # Task complexity classification for planning enforcement.
+    task_complexity: str = "simple"
+    # Whether planning mode should be used for this task.
+    use_planning: bool = False
+    # Planning instruction text (if planning is enabled).
+    planning_instruction: str = ""
 
 
 def build_turn_context(
@@ -564,6 +570,17 @@ def build_turn_context(
         except Exception:
             pass
 
+    # Task complexity classification for planning enforcement
+    try:
+        from agent.task_complexity import classify_task_complexity, should_use_planning, get_planning_prompt
+        task_complexity = classify_task_complexity(user_message, agent)
+        use_planning = should_use_planning(task_complexity, agent)
+        planning_instruction = get_planning_prompt(user_message) if use_planning else ""
+    except Exception:
+        task_complexity = "simple"
+        use_planning = False
+        planning_instruction = ""
+
     return TurnContext(
         user_message=user_message,
         original_user_message=original_user_message,
@@ -576,4 +593,7 @@ def build_turn_context(
         should_review_memory=should_review_memory,
         plugin_user_context=plugin_user_context,
         ext_prefetch_cache=ext_prefetch_cache,
+        task_complexity=task_complexity,
+        use_planning=use_planning,
+        planning_instruction=planning_instruction,
     )

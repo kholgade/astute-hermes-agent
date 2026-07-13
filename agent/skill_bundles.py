@@ -319,6 +319,16 @@ def build_bundle_invocation_message(
             disabled.append(skill_name or identifier)
             continue
 
+        # Also check skill frontmatter for enabled: false (auto-disable or manual)
+        try:
+            from agent.skill_frontmatter import get_skill_enabled_status
+            enabled_status = get_skill_enabled_status(skill_dir)
+            if enabled_status is False:
+                disabled.append(skill_name or identifier)
+                continue
+        except Exception:
+            pass  # If frontmatter check fails, don't block skill
+
         try:
             from tools.skill_usage import bump_use
             bump_use(skill_name)
