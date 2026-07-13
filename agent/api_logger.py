@@ -109,7 +109,7 @@ def log_api_request(
     log_path = _get_session_log_path(agent, "requests")
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(log_path, "a") as f:
+        with open(log_path, "a", encoding="utf-8") as f:
             json.dump(entry, f, default=str)
             f.write("\n")
     except Exception as e:
@@ -178,7 +178,7 @@ def log_token_metrics(
     log_path = _get_session_log_path(agent, "metrics")
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(log_path, "a") as f:
+        with open(log_path, "a", encoding="utf-8") as f:
             json.dump(entry, f, default=str)
             f.write("\n")
     except Exception as e:
