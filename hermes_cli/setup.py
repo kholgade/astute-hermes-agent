@@ -2714,7 +2714,7 @@ def run_setup_wizard(args):
 
     reset_requested = bool(getattr(args, "reset", False))
     if reset_requested:
-        save_config(copy.deepcopy(DEFAULT_CONFIG))
+        save_config(copy.deepcopy(DEFAULT_CONFIG), strip_defaults=False)
         print_success("Configuration reset to defaults.")
 
     reconfigure_requested = bool(getattr(args, "reconfigure", False))
@@ -2921,7 +2921,7 @@ def run_setup_wizard(args):
         setup_tools(config, first_install=not is_existing)
 
     # Save and show summary
-    save_config(config)
+    save_config(config, strip_defaults=False)
     if _backup_path and _backup_path.exists():
         print_info(f"Previous config backed up to: {_backup_path}")
         print_info("If setup changed a value you customized, restore it with:")
