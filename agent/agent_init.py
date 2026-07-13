@@ -1483,6 +1483,22 @@ def init_agent(
         except Exception:
             pass
 
+    # System prompt mode: "optimized" (default) or "verbose".
+    # Optimized mode excludes context files (AGENTS.md, .cursorrules, etc.)
+    # to reduce token count. Verbose mode includes them for backwards compatibility.
+    agent._system_prompt_mode = _agent_section.get("system_prompt_mode", "optimized")
+
+    # Planning mode: "auto" (default), "always", or "disabled".
+    # Auto: use planning for complex/medium tasks only (classification-based).
+    # Always: enforce planning for all tasks.
+    # Disabled: never use planning mode (pure REPL execution).
+    agent._planning_mode = _agent_section.get("planning_mode", "auto")
+
+    # XML prompt format: "enabled" or "disabled" (default).
+    # When enabled, system prompts use XML delimiters for clarity.
+    # When disabled, system prompts use Markdown sections (backwards compatible).
+    agent._xml_prompts_enabled = _agent_section.get("xml_prompts", "disabled").lower() == "enabled"
+
     # Per-platform prompt-hint overrides (config.yaml → platform_hints).
     # Lets an enterprise admin append to or replace Hermes' built-in
     # platform hint for a single messaging platform (e.g. WhatsApp) without

@@ -601,6 +601,13 @@ def run_conversation(
     _should_review_memory = _ctx.should_review_memory
     _plugin_user_context = _ctx.plugin_user_context
     _ext_prefetch_cache = _ctx.ext_prefetch_cache
+    _task_complexity = _ctx.task_complexity
+    _use_planning = _ctx.use_planning
+    _planning_instruction = _ctx.planning_instruction
+
+    # Inject planning instruction into user message if planning is enabled
+    if _use_planning and _planning_instruction:
+        user_message = f"{_planning_instruction}\n\n{user_message}"
 
     # Main conversation loop counters (pure locals consumed by the loop below).
     api_call_count = 0
