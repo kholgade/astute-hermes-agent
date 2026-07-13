@@ -14400,7 +14400,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
     # ``allow_update_command=True`` on their ``PlatformEntry`` and are
     # honored via the registry fallback at ``_handle_update_command`` below.
     _UPDATE_ALLOWED_PLATFORMS = frozenset({
-        Platform.TELEGRAM, Platform.WHATSAPP, Platform.EMAIL, Platform.SMS, Platform.LOCAL, Platform.DISCORD,
+        Platform.TELEGRAM, Platform.WHATSAPP, Platform.EMAIL, Platform.SMS,
     })
 
 
