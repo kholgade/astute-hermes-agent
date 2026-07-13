@@ -1373,7 +1373,32 @@ def run_conversation(
                     # Log response with provider info if available
                     resp_model = getattr(response, 'model', 'N/A') if response else 'N/A'
                     logging.debug(f"API Response received - Model: {resp_model}, Usage: {response.usage if hasattr(response, 'usage') else 'N/A'}")
-                
+
+                # Log full request/response if configured
+                if agent._api_request_logging != "disabled":
+                    from agent.api_logger import log_api_request, log_token_metrics
+                    log_api_request(
+                        agent=agent,
+                        request_payload=api_kwargs,
+                        response=response,
+                        duration_ms=api_duration * 1000,
+                        error=None,
+                    )
+                    if agent._api_token_metrics_logging and response is not None:
+                        _usage = getattr(response, 'usage', None)
+                        _model = getattr(response, 'model', None) or agent.model
+                        # Estimate cost (simplified; real cost calculation would be more complex)
+                        _cost = None
+                        log_token_metrics(
+                            agent=agent,
+                            usage=_usage,
+                            model=_model,
+                            provider=agent.provider,
+                            cost_usd=_cost,
+                            duration_ms=api_duration * 1000,
+                            error=None,
+                        )
+
                 # Validate response shape before proceeding
                 response_invalid = False
                 error_details = []
@@ -2615,6 +2640,19 @@ def run_conversation(
                     classified.retryable, classified.should_compress,
                     classified.should_rotate_credential, classified.should_fallback,
                 )
+
+                # Log API error if configured (debug mode only)
+                if agent._api_request_logging == "debug":
+                    from agent.api_logger import log_api_request
+                    api_duration = time.time() - api_start_time
+                    log_api_request(
+                        agent=agent,
+                        request_payload=api_kwargs if api_kwargs else {},
+                        response=None,
+                        duration_ms=api_duration * 1000,
+                        error=api_error,
+                    )
+
                 agent._invoke_api_request_error_hook(
                     task_id=effective_task_id,
                     turn_id=turn_id,

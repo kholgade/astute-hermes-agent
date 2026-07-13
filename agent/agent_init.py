@@ -1526,6 +1526,14 @@ def init_agent(
         _api_retries = 3
     agent._api_max_retries = _api_retries
 
+    # API request/response logging configuration
+    # Modes: disabled (default, no overhead) | redacted (production-safe) | debug (development)
+    agent._api_request_logging = _agent_section.get("api_request_logging", "disabled").lower()
+    if agent._api_request_logging not in ("disabled", "redacted", "debug"):
+        agent._api_request_logging = "disabled"
+    agent._api_request_logging_errors_only = bool(_agent_section.get("api_request_logging_errors_only", False))
+    agent._api_token_metrics_logging = bool(_agent_section.get("api_token_metrics_logging", True))
+
     # Initialize context compressor for automatic context management
     # Compresses conversation when approaching model's context limit
     # Configuration via config.yaml (compression section)
