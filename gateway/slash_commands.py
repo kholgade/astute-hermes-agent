@@ -678,13 +678,6 @@ class GatewaySlashCommandsMixin:
     def _same_matrix_room(current: SessionSource, origin: Optional[SessionSource]) -> bool:
         # Matrix platform has been removed; always return False
         return False
-            # of the SAME room is a DIFFERENT session, so a caller in thread A
-            # must not resume/enumerate a target whose origin is in thread B.
-            # Non-threaded rooms have empty thread_id on both sides ("" == ""),
-            # so room-level sharing is preserved unchanged.
-            and str(getattr(current, "thread_id", "") or "")
-            == str(getattr(origin, "thread_id", "") or "")
-        )
 
     def _same_origin_chat(self, current: SessionSource, origin: Optional[SessionSource]) -> bool:
         """Platform-agnostic counterpart to ``_same_matrix_room``.
