@@ -36,10 +36,10 @@ from gateway.session import SessionSource
 
 # Platforms whose adapters own their access policy at intake.
 _OWN_POLICY_PLATFORMS = [
-    Platform.WECOM,
-    Platform.WEIXIN,
+    Platform.SLACK,
+    Platform.DISCORD,
     Platform.YUANBAO,
-    Platform.QQBOT,
+    Platform.WHATSAPP,
     Platform.WHATSAPP,
 ]
 
@@ -306,7 +306,7 @@ def test_wecom_open_group_with_per_group_sender_allowlist_is_authorized(monkeypa
     _clear_auth_env(monkeypatch)
     config = GatewayConfig(
         platforms={
-            Platform.WECOM: PlatformConfig(
+            Platform.SLACK: PlatformConfig(
                 enabled=True,
                 extra={
                     "group_policy": "open",
@@ -315,9 +315,9 @@ def test_wecom_open_group_with_per_group_sender_allowlist_is_authorized(monkeypa
             )
         }
     )
-    runner, _adapter = _make_runner(Platform.WECOM, config, enforces=True)
+    runner, _adapter = _make_runner(Platform.SLACK, config, enforces=True)
 
-    assert runner._is_user_authorized(_source(Platform.WECOM, chat_type="group")) is True
+    assert runner._is_user_authorized(_source(Platform.SLACK, chat_type="group")) is True
 
 
 def test_wecom_open_group_with_wildcard_sender_allowlist_is_authorized(monkeypatch):
@@ -325,7 +325,7 @@ def test_wecom_open_group_with_wildcard_sender_allowlist_is_authorized(monkeypat
     _clear_auth_env(monkeypatch)
     config = GatewayConfig(
         platforms={
-            Platform.WECOM: PlatformConfig(
+            Platform.SLACK: PlatformConfig(
                 enabled=True,
                 extra={
                     "group_policy": "open",
@@ -334,9 +334,9 @@ def test_wecom_open_group_with_wildcard_sender_allowlist_is_authorized(monkeypat
             )
         }
     )
-    runner, _adapter = _make_runner(Platform.WECOM, config, enforces=True)
+    runner, _adapter = _make_runner(Platform.SLACK, config, enforces=True)
 
-    assert runner._is_user_authorized(_source(Platform.WECOM, chat_type="group")) is True
+    assert runner._is_user_authorized(_source(Platform.SLACK, chat_type="group")) is True
 
 
 def test_non_owning_platform_still_default_denies(monkeypatch):
@@ -360,16 +360,16 @@ def test_env_allowlist_still_takes_precedence_for_own_policy_platform(monkeypatc
     _clear_auth_env(monkeypatch)
     monkeypatch.setenv("WECOM_ALLOWED_USERS", "allowed-user")
     config = GatewayConfig(
-        platforms={Platform.WECOM: PlatformConfig(enabled=True, extra={"dm_policy": "open"})}
+        platforms={Platform.SLACK: PlatformConfig(enabled=True, extra={"dm_policy": "open"})}
     )
-    runner, _adapter = _make_runner(Platform.WECOM, config, enforces=True)
+    runner, _adapter = _make_runner(Platform.SLACK, config, enforces=True)
 
     listed = SessionSource(
-        platform=Platform.WECOM, user_id="allowed-user", chat_id="c",
+        platform=Platform.SLACK, user_id="allowed-user", chat_id="c",
         user_name="t", chat_type="dm",
     )
     stranger = SessionSource(
-        platform=Platform.WECOM, user_id="stranger", chat_id="c",
+        platform=Platform.SLACK, user_id="stranger", chat_id="c",
         user_name="t", chat_type="dm",
     )
     assert runner._is_user_authorized(listed) is True
@@ -379,12 +379,12 @@ def test_env_allowlist_still_takes_precedence_for_own_policy_platform(monkeypatc
 def test_unknown_adapter_does_not_crash_trust_check(monkeypatch):
     """No adapter registered for the platform → safe default-deny."""
     _clear_auth_env(monkeypatch)
-    config = GatewayConfig(platforms={Platform.WECOM: PlatformConfig(enabled=True)})
-    runner, _adapter = _make_runner(Platform.WECOM, config, enforces=True)
+    config = GatewayConfig(platforms={Platform.SLACK: PlatformConfig(enabled=True)})
+    runner, _adapter = _make_runner(Platform.SLACK, config, enforces=True)
     runner.adapters = {}  # nothing registered
 
-    assert runner._adapter_enforces_own_access_policy(Platform.WECOM) is False
-    assert runner._is_user_authorized(_source(Platform.WECOM)) is False
+    assert runner._adapter_enforces_own_access_policy(Platform.SLACK) is False
+    assert runner._is_user_authorized(_source(Platform.SLACK)) is False
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +400,7 @@ def test_unknown_adapter_does_not_crash_trust_check(monkeypatch):
 # so an unpaired sender falls through to default-deny (and gets a pairing code).
 
 
-@pytest.mark.parametrize("platform", [Platform.WECOM, Platform.WEIXIN])
+@pytest.mark.parametrize("platform", [Platform.SLACK, Platform.DISCORD])
 def test_pairing_dm_policy_not_blanket_authorized(monkeypatch, platform):
     """An unpaired sender in ``dm_policy: pairing`` is NOT authorized."""
     _clear_auth_env(monkeypatch)
@@ -417,12 +417,12 @@ def test_pairing_dm_policy_authorizes_paired_user(monkeypatch):
     """Once approved in the pairing store, the sender authorizes normally."""
     _clear_auth_env(monkeypatch)
     config = GatewayConfig(
-        platforms={Platform.WECOM: PlatformConfig(enabled=True, extra={"dm_policy": "pairing"})}
+        platforms={Platform.SLACK: PlatformConfig(enabled=True, extra={"dm_policy": "pairing"})}
     )
-    runner, _adapter = _make_runner(Platform.WECOM, config, enforces=True)
+    runner, _adapter = _make_runner(Platform.SLACK, config, enforces=True)
     runner.pairing_store.is_approved.return_value = True
 
-    assert runner._is_user_authorized(_source(Platform.WECOM)) is True
+    assert runner._is_user_authorized(_source(Platform.SLACK)) is True
 
 
 def test_pairing_carveout_reads_adapter_when_env_set(monkeypatch):
@@ -434,12 +434,12 @@ def test_pairing_carveout_reads_adapter_when_env_set(monkeypatch):
     """
     _clear_auth_env(monkeypatch)
     config = GatewayConfig(
-        platforms={Platform.WECOM: PlatformConfig(enabled=True, extra={})}
+        platforms={Platform.SLACK: PlatformConfig(enabled=True, extra={})}
     )
-    runner, adapter = _make_runner(Platform.WECOM, config, enforces=True)
+    runner, adapter = _make_runner(Platform.SLACK, config, enforces=True)
     adapter._dm_policy = "pairing"  # as the adapter would resolve from the env var
 
-    assert runner._is_user_authorized(_source(Platform.WECOM)) is False
+    assert runner._is_user_authorized(_source(Platform.SLACK)) is False
 
 
 def test_pairing_dm_policy_group_chat_still_trusted(monkeypatch):
@@ -451,14 +451,14 @@ def test_pairing_dm_policy_group_chat_still_trusted(monkeypatch):
     _clear_auth_env(monkeypatch)
     config = GatewayConfig(
         platforms={
-            Platform.WECOM: PlatformConfig(
+            Platform.SLACK: PlatformConfig(
                 enabled=True, extra={"dm_policy": "pairing", "group_policy": "allowlist"}
             )
         }
     )
-    runner, _adapter = _make_runner(Platform.WECOM, config, enforces=True)
+    runner, _adapter = _make_runner(Platform.SLACK, config, enforces=True)
 
-    assert runner._is_user_authorized(_source(Platform.WECOM, chat_type="group")) is True
+    assert runner._is_user_authorized(_source(Platform.SLACK, chat_type="group")) is True
 
 
 # ---------------------------------------------------------------------------
@@ -478,20 +478,20 @@ def test_unauthorized_dm_behavior_follows_config_dm_policy(monkeypatch, dm_polic
     """A restrictive dm_policy drops unauthorized DMs; pairing opts back in."""
     _clear_auth_env(monkeypatch)
     config = GatewayConfig(
-        platforms={Platform.WECOM: PlatformConfig(enabled=True, extra={"dm_policy": dm_policy})}
+        platforms={Platform.SLACK: PlatformConfig(enabled=True, extra={"dm_policy": dm_policy})}
     )
-    runner, _adapter = _make_runner(Platform.WECOM, config, enforces=True)
+    runner, _adapter = _make_runner(Platform.SLACK, config, enforces=True)
 
-    assert runner._get_unauthorized_dm_behavior(Platform.WECOM) == expected
+    assert runner._get_unauthorized_dm_behavior(Platform.SLACK) == expected
 
 
 def test_unauthorized_dm_behavior_open_policy_keeps_default(monkeypatch):
     """``dm_policy: open`` is not restrictive → falls through to the default."""
     _clear_auth_env(monkeypatch)
     config = GatewayConfig(
-        platforms={Platform.WECOM: PlatformConfig(enabled=True, extra={"dm_policy": "open"})}
+        platforms={Platform.SLACK: PlatformConfig(enabled=True, extra={"dm_policy": "open"})}
     )
-    runner, _adapter = _make_runner(Platform.WECOM, config, enforces=True)
+    runner, _adapter = _make_runner(Platform.SLACK, config, enforces=True)
 
     # No allowlist + no restrictive policy → open-gateway pairing default.
-    assert runner._get_unauthorized_dm_behavior(Platform.WECOM) == "pair"
+    assert runner._get_unauthorized_dm_behavior(Platform.SLACK) == "pair"

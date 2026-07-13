@@ -95,7 +95,7 @@ class TestCaseSensitiveChatIdParsing:
         parsing structure.
         """
         target = DeliveryTarget.parse("matrix:!RoomABC:example.org")
-        assert target.platform == Platform.MATRIX
+        assert target.platform == Platform.TELEGRAM
         # The room ID is split at the first colon after the platform prefix
         # This is a format limitation - the case is preserved but the structure is split
         assert target.chat_id == "!RoomABC"

@@ -463,7 +463,7 @@ class TestUpdateCommandPlatformGate:
         """
         from gateway.run import GatewayRunner
 
-        assert Platform.MATTERMOST not in GatewayRunner._UPDATE_ALLOWED_PLATFORMS
+        assert Platform.SLACK not in GatewayRunner._UPDATE_ALLOWED_PLATFORMS
 
         from hermes_cli.plugins import PluginManager
         PluginManager().discover_and_load(force=True)
@@ -473,7 +473,7 @@ class TestUpdateCommandPlatformGate:
         assert mm_entry.allow_update_command is True
 
         runner = _make_runner()
-        event = _make_event(platform=Platform.MATTERMOST)
+        event = _make_event(platform=Platform.SLACK)
         monkeypatch.setenv("HERMES_MANAGED", "")
 
         with patch("subprocess.Popen"):

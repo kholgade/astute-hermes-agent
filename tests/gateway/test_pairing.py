@@ -860,12 +860,12 @@ class TestProfileScopedStorage:
 
         g = FakeGateway()
         # source with profile="yangyang" → per-profile store
-        s_yy = SessionSource(platform=Platform.WEIXIN, chat_id="c", profile="yangyang")
+        s_yy = SessionSource(platform=Platform.DISCORD, chat_id="c", profile="yangyang")
         assert g._pairing_store_for(s_yy) == "yangyang-store"
         # source with no profile → fallback to global
-        s_none = SessionSource(platform=Platform.WEIXIN, chat_id="c")
+        s_none = SessionSource(platform=Platform.DISCORD, chat_id="c")
         assert g._pairing_store_for(s_none) is g.pairing_store
         # source with an unknown profile → fallback (defensive)
-        s_unknown = SessionSource(platform=Platform.WEIXIN, chat_id="c", profile="ghost")
+        s_unknown = SessionSource(platform=Platform.DISCORD, chat_id="c", profile="ghost")
         assert g._pairing_store_for(s_unknown) is g.pairing_store
 

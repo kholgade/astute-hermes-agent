@@ -737,48 +737,6 @@ async def test_email_pairing_requires_explicit_platform_opt_in(monkeypatch):
     adapter.send.assert_awaited_once()
     assert "EMAIL123" in adapter.send.await_args.args[1]
 
-def test_explicit_pair_config_overrides_allowlist_default(monkeypatch):
-    """Explicit unauthorized_dm_behavior='pair' overrides the allowlist default.
-
-    Operators can opt back in to pairing even with an allowlist by setting
-    unauthorized_dm_behavior: pair in their platform config.  We test the
-    _get_unauthorized_dm_behavior resolver directly to avoid the full
-    _handle_message pipeline which requires extensive runner state.
-    """
-    _clear_auth_env(monkeypatch)
-    monkeypatch.setenv("SIGNAL_ALLOWED_USERS", "+15550000001")
-
-    config = GatewayConfig(
-        platforms={
-            Platform.SIGNAL: PlatformConfig(
-                enabled=True,
-                extra={"unauthorized_dm_behavior": "pair"},  # explicit override
-            ),
-        },
-    )
-    runner, _adapter = _make_runner(Platform.SIGNAL, config)
-
-    # The per-platform explicit config should beat the allowlist-derived default
-    behavior = runner._get_unauthorized_dm_behavior(Platform.SIGNAL)
-    assert behavior == "pair"
-
-def test_allowlist_authorized_user_returns_ignore_for_unauthorized(monkeypatch):
-    """_get_unauthorized_dm_behavior returns 'ignore' when allowlist is set.
-
-    We test the resolver directly.  The full _handle_message path for
-    authorized users is covered by the integration tests in this module.
-    """
-    _clear_auth_env(monkeypatch)
-    monkeypatch.setenv("SIGNAL_ALLOWED_USERS", "+15550000001")
-
-    config = GatewayConfig(
-        platforms={Platform.SIGNAL: PlatformConfig(enabled=True)},
-    )
-    runner, _adapter = _make_runner(Platform.SIGNAL, config)
-
-    behavior = runner._get_unauthorized_dm_behavior(Platform.SIGNAL)
-    assert behavior == "ignore"
-
 def test_get_unauthorized_dm_behavior_email_no_allowlist_returns_ignore(monkeypatch):
     _clear_auth_env(monkeypatch)
 

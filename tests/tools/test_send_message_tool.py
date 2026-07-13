@@ -464,7 +464,7 @@ class TestSendMessageTool:
             extra={"homeserver": "https://matrix.example.com"},
         )
         config = SimpleNamespace(
-            platforms={Platform.MATRIX: matrix_cfg},
+            platforms={Platform.TELEGRAM: matrix_cfg},
             get_home_channel=lambda _platform: None,
         )
 
@@ -489,7 +489,7 @@ class TestSendMessageTool:
 
         assert result["success"] is True
         send_mock.assert_awaited_once_with(
-            Platform.MATRIX,
+            Platform.TELEGRAM,
             matrix_cfg,
             "!roomid:matrix.example.org",
             "hello",
@@ -916,7 +916,7 @@ class TestSendToPlatformChunking:
             with patch("tools.send_message_tool._send_matrix_via_adapter", helper):
                 result = asyncio.run(
                     _send_to_platform(
-                        Platform.MATRIX,
+                        Platform.TELEGRAM,
                         SimpleNamespace(enabled=True, token="tok", extra={"homeserver": "https://matrix.example.com"}),
                         "!room:example.com",
                         "here you go",
@@ -953,7 +953,7 @@ class TestSendToPlatformChunking:
             with patch("tools.send_message_tool._send_matrix_via_adapter", helper):
                 result = asyncio.run(
                     _send_to_platform(
-                        Platform.MATRIX,
+                        Platform.TELEGRAM,
                         SimpleNamespace(enabled=True, token="tok", extra={"homeserver": "https://matrix.example.com"}),
                         "!room:ex.com",
                         "just text, no files",
@@ -1041,7 +1041,7 @@ class TestMatrixMediaLiveAdapterReuse:
 
         live_adapter = LiveAdapter()
         fake_runner = SimpleNamespace(
-            adapters={Platform.MATRIX: live_adapter}
+            adapters={Platform.TELEGRAM: live_adapter}
         )
 
         with patch(

@@ -60,7 +60,7 @@ async def test_teardown_bounds_hanging_disconnect(bare_runner, monkeypatch, capl
 
     with caplog.at_level(logging.WARNING, logger="gateway.run"):
         await asyncio.wait_for(
-            bare_runner._bounded_adapter_teardown(adapter, Platform.FEISHU),
+            bare_runner._bounded_adapter_teardown(adapter, Platform.TELEGRAM),
             timeout=5.0,  # the helper itself must return well under this
         )
 
@@ -82,7 +82,7 @@ async def test_teardown_bounds_hanging_cancel(bare_runner, monkeypatch, caplog):
 
     with caplog.at_level(logging.WARNING, logger="gateway.run"):
         await asyncio.wait_for(
-            bare_runner._bounded_adapter_teardown(adapter, Platform.FEISHU),
+            bare_runner._bounded_adapter_teardown(adapter, Platform.TELEGRAM),
             timeout=5.0,
         )
 

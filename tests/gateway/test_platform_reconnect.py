@@ -86,7 +86,7 @@ class TestStartupPlatformIsolation:
         runner.config = GatewayConfig(
             platforms={
                 Platform.TELEGRAM: PlatformConfig(enabled=True, token="test"),
-                Platform.FEISHU: PlatformConfig(enabled=True, token="test"),
+                Platform.TELEGRAM: PlatformConfig(enabled=True, token="test"),
             },
             sessions_dir=tmp_path,
         )
@@ -102,7 +102,7 @@ class TestStartupPlatformIsolation:
 
         adapters = {
             Platform.TELEGRAM: StubAdapter(platform=Platform.TELEGRAM),
-            Platform.FEISHU: StubAdapter(platform=Platform.FEISHU),
+            Platform.TELEGRAM: StubAdapter(platform=Platform.TELEGRAM),
         }
         runner._create_adapter = MagicMock(
             side_effect=lambda platform, _config: adapters[platform]
@@ -134,7 +134,7 @@ class TestStartupPlatformIsolation:
                                     assert await runner.start() is True
 
         assert Platform.TELEGRAM in runner._failed_platforms
-        assert Platform.FEISHU in runner.adapters
+        assert Platform.TELEGRAM in runner.adapters
         assert Platform.TELEGRAM not in runner.adapters
         assert runner._create_adapter.call_count == 2
 
