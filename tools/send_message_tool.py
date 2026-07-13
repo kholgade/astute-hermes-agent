@@ -12,7 +12,6 @@ import os
 import re
 import ssl
 import time
-from email.utils import formatdate
 
 from agent.redact import redact_sensitive_text
 
