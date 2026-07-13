@@ -451,22 +451,6 @@ def build_session_context_prompt(
             f"**Channel Topic:** {_format_untrusted_prompt_value(context.source.chat_topic)}"
         )
 
-    if context.source.platform == Platform.MATRIX:
-        src = context.source
-        room_name = src.chat_name or src.chat_id
-        room_id = _hash_chat_id(src.chat_id) if redact_pii else src.chat_id
-        lines.append("")
-        lines.append(f"**Matrix Room:** {_format_untrusted_prompt_value(room_name)}")
-        lines.append(f"**Matrix Room ID:** {room_id}")
-        if src.thread_id:
-            thread_id = _hash_chat_id(src.thread_id) if redact_pii else src.thread_id
-            lines.append(f"**Matrix Thread:** {thread_id}")
-        lines.append(
-            "**Matrix room boundary:** Treat this turn as scoped to the current "
-            "Matrix room/thread only. Do not assume unresolved references are "
-            "about other Matrix rooms or projects unless the user explicitly says so."
-        )
-
     # User identity.
     # In shared multi-user sessions (shared threads OR shared non-thread groups
     # when group_sessions_per_user=False), multiple users contribute to the same

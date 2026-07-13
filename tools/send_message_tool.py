@@ -81,7 +81,6 @@ _CAPTIONABLE_EXTS = _IMAGE_EXTS | _VIDEO_EXTS | {
 _TELEGRAM_CAPTION_LIMIT = 1024
 _DEFAULT_CAPTION_LIMIT = 4096
 
-
 def _media_caption_split(text, media_files, *, max_caption_len):
     """Decide whether the accompanying text should ride on the media bubble.
 
@@ -130,7 +129,6 @@ _GENERIC_SECRET_ASSIGN_RE = re.compile(
     re.IGNORECASE,
 )
 
-
 def _sanitize_error_text(text) -> str:
     """Redact secrets from error text before surfacing it to users/models."""
     redacted = redact_sensitive_text(text)
@@ -138,18 +136,15 @@ def _sanitize_error_text(text) -> str:
     redacted = _GENERIC_SECRET_ASSIGN_RE.sub(lambda m: f"{m.group(1)}=***", redacted)
     return redacted
 
-
 def _error(message: str) -> dict:
     """Build a standardized error payload with redacted content."""
     return {"error": _sanitize_error_text(message)}
-
 
 def _display_chat_id(platform_name: str, chat_id: str) -> str:
     """Return a result-safe chat identifier for tool transcripts/log consumers."""
     if platform_name == "signal" and str(chat_id).startswith("group:"):
         return "group:***"
     return chat_id
-
 
 def _telegram_retry_delay(exc: Exception, attempt: int) -> float | None:
     retry_after = getattr(exc, "retry_after", None)
@@ -175,7 +170,6 @@ def _telegram_retry_delay(exc: Exception, attempt: int) -> float | None:
         return float(2 ** attempt)
     return None
 
-
 async def _send_telegram_message_with_retry(bot, *, attempts: int = 3, **kwargs):
     for attempt in range(attempts):
         try:
@@ -192,7 +186,6 @@ async def _send_telegram_message_with_retry(bot, *, attempts: int = 3, **kwargs)
                 _sanitize_error_text(exc),
             )
             await asyncio.sleep(delay)
-
 
 SEND_MESSAGE_SCHEMA = {
     "name": "send_message",
@@ -233,7 +226,6 @@ SEND_MESSAGE_SCHEMA = {
     }
 }
 
-
 def send_message_tool(args, **kw):
     """Handle cross-channel send_message tool calls."""
     action = args.get("action", "send")
@@ -249,7 +241,6 @@ def send_message_tool(args, **kw):
 
     return _handle_send(args)
 
-
 def _handle_list():
     """Return formatted list of available messaging targets."""
     try:
@@ -257,7 +248,6 @@ def _handle_list():
         return json.dumps({"targets": format_directory_for_display()})
     except Exception as e:
         return json.dumps(_error(f"Failed to load channel directory: {e}"))
-
 
 def _handle_react(args, remove=False):
     """Attach (or with ``remove=True`` retract) an emoji reaction on a message
@@ -349,7 +339,6 @@ def _handle_react(args, remove=False):
     if isinstance(result, dict):
         return json.dumps(result)
     return json.dumps({"success": bool(result)})
-
 
 def _handle_send(args):
     """Send a message to a platform target."""
@@ -527,7 +516,6 @@ def _handle_send(args):
     except Exception as e:
         return json.dumps(_error(f"Send failed: {e}"))
 
-
 def _parse_target_ref(platform_name: str, target_ref: str):
     """Parse a tool target into chat_id/thread_id and whether it is explicit."""
     if platform_name == "telegram":
@@ -615,7 +603,6 @@ def _parse_target_ref(platform_name: str, target_ref: str):
         return target_ref, None, True
     return None, None, False
 
-
 def _describe_media_for_mirror(media_files):
     """Return a human-readable mirror summary when a message only contains media."""
     if not media_files:
@@ -634,7 +621,6 @@ def _describe_media_for_mirror(media_files):
         return "[Sent document attachment]"
     return f"[Sent {len(media_files)} media attachments]"
 
-
 def _get_cron_auto_delivery_target():
     """Return the cron scheduler's auto-delivery target for the current run, if any."""
     from gateway.session_context import get_session_env
@@ -648,7 +634,6 @@ def _get_cron_auto_delivery_target():
         "chat_id": chat_id,
         "thread_id": thread_id,
     }
-
 
 def _maybe_skip_cron_duplicate_send(platform_name: str, chat_id: str, thread_id: str | None):
     """Skip redundant cron send_message calls when the scheduler will auto-deliver there."""
@@ -679,7 +664,6 @@ def _maybe_skip_cron_duplicate_send(platform_name: str, chat_id: str, thread_id:
             "your final response instead, or use a different target if you want an additional message."
         ),
     }
-
 
 async def _send_via_adapter(
     platform,
@@ -775,7 +759,6 @@ async def _send_via_adapter(
         )
     }
 
-
 async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None, media_files=None, force_document=False):
     """Route a message to the appropriate platform sender.
 
@@ -787,13 +770,8 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
 
     media_files = media_files or []
 
-    # Weixin handles text/media delivery inside its native helper and does not
-    # need the optional platform adapter imports below. Keep this branch early
-    # so a Weixin send is not blocked by unrelated optional dependencies (for
-    # example lark-oapi's heavy Feishu import path).
-    if platform == Platform.WEIXIN:
-        return await _send_weixin(pconfig, chat_id, message, media_files=media_files)
-
+    # Platform-specific send logic moved to adapters and registry
+    
     from gateway.platforms.base import BasePlatformAdapter, utf16_len
 
     # Telegram adapter import is optional (requires python-telegram-bot)
@@ -910,39 +888,9 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
     # padlock because they took the raw-HTTP standalone path). The adapter
     # reuses the live gateway's E2EE session when available (#46310) and falls
     # back to an encryption-aware ephemeral adapter for standalone/cron. ---
-    if platform == Platform.MATRIX:
-        last_result = None
-        for i, chunk in enumerate(chunks):
-            is_last = (i == len(chunks) - 1)
-            result = await _send_matrix_via_adapter(
-                pconfig,
-                chat_id,
-                chunk,
-                media_files=media_files if is_last else [],
-                thread_id=thread_id,
-            )
-            if isinstance(result, dict) and result.get("error"):
-                return result
-            last_result = result
-        return last_result
 
     # --- Signal: native attachment support via JSON-RPC attachments param ---
-    if platform == Platform.SIGNAL and media_files:
-        last_result = None
-        for i, chunk in enumerate(chunks):
-            is_last = (i == len(chunks) - 1)
-            result = await _send_signal(
-                pconfig.extra,
-                chat_id,
-                chunk,
-                media_files=media_files if is_last else [],
-            )
-            if isinstance(result, dict) and result.get("error"):
-                return result
-            last_result = result
-        return last_result
 
-    # --- Yuanbao: native media attachment support via running gateway adapter ---
     if platform == Platform.YUANBAO and media_files:
         last_result = None
         for i, chunk in enumerate(chunks):
@@ -959,32 +907,7 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
 
     # --- Feishu: native media attachment support via the registry's
     # standalone_sender_fn (plugins/platforms/feishu/adapter.py::_standalone_send). #41112
-    if platform == Platform.FEISHU and media_files:
-        from gateway.platform_registry import platform_registry as _pr_feishu
-        from hermes_cli.plugins import discover_plugins as _dp_feishu
-        _dp_feishu()
-        _feishu_entry = _pr_feishu.get("feishu")
-        if _feishu_entry is None or _feishu_entry.standalone_sender_fn is None:
-            return {"error": "Feishu plugin not registered or missing standalone_sender_fn"}
-        last_result = None
-        for i, chunk in enumerate(chunks):
-            is_last = (i == len(chunks) - 1)
-            result = await _feishu_entry.standalone_sender_fn(
-                pconfig,
-                chat_id,
-                chunk,
-                media_files=media_files if is_last else None,
-                thread_id=thread_id,
-            )
-            if isinstance(result, dict) and result.get("error"):
-                return result
-            last_result = result
-        return last_result
 
-    # --- WhatsApp: native media attachment support via the registry's
-    # standalone_sender_fn (plugins/platforms/whatsapp/adapter.py::_standalone_send).
-    # The plugin uploads each file through the local Baileys bridge /send-media
-    # endpoint so images/videos/audio arrive as native bubbles, not documents. #41112
     if platform == Platform.WHATSAPP and media_files:
         from gateway.platform_registry import platform_registry as _pr_wa
         from hermes_cli.plugins import discover_plugins as _dp_wa
@@ -1062,22 +985,15 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
                 )
         elif platform == Platform.WHATSAPP:
             result = await _registry_standalone_send("whatsapp", pconfig, chat_id, chunk, thread_id)
-        elif platform == Platform.SIGNAL:
-            result = await _send_signal(pconfig.extra, chat_id, chunk)
+
         elif platform == Platform.EMAIL:
             result = await _registry_standalone_send("email", pconfig, chat_id, chunk, thread_id)
         elif platform == Platform.SMS:
             result = await _registry_standalone_send("sms", pconfig, chat_id, chunk, thread_id)
-        elif platform == Platform.DINGTALK:
-            result = await _registry_standalone_send("dingtalk", pconfig, chat_id, chunk, thread_id)
-        elif platform == Platform.FEISHU:
-            result = await _registry_standalone_send("feishu", pconfig, chat_id, chunk, thread_id)
-        elif platform == Platform.WECOM:
-            result = await _registry_standalone_send("wecom", pconfig, chat_id, chunk, thread_id)
+
         elif platform == Platform.BLUEBUBBLES:
             result = await _send_bluebubbles(pconfig.extra, chat_id, chunk)
-        elif platform == Platform.QQBOT:
-            result = await _send_qqbot(pconfig, chat_id, chunk)
+
         elif platform == Platform.YUANBAO:
             result = await _send_yuanbao(chat_id, chunk)
         else:
@@ -1103,7 +1019,6 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
         last_result["warnings"] = warnings
     return last_result
 
-
 def _is_telegram_thread_not_found(error: Exception) -> bool:
     """Check if a Telegram error is a thread-not-found failure.
 
@@ -1111,7 +1026,6 @@ def _is_telegram_thread_not_found(error: Exception) -> bool:
     the standalone ``_send_telegram`` path (issue #27012).
     """
     return "thread not found" in str(error).lower()
-
 
 async def _send_telegram(token, chat_id, message, media_files=None, thread_id=None, disable_link_previews=False, force_document=False):
     """Send via Telegram Bot API (one-shot, no polling needed).
@@ -1424,10 +1338,8 @@ async def _send_telegram(token, chat_id, message, media_files=None, thread_id=No
     except Exception as e:
         return _error(f"Telegram send failed: {e}")
 
-
 # _send_slack moved to the slack plugin as _standalone_send
 # (plugins/platforms/slack/adapter.py), wired via standalone_sender_fn. #41112.
-
 
 async def _registry_standalone_send(platform_name, pconfig, chat_id, message, thread_id=None):
     """Dispatch a one-shot send through a migrated platform plugin's
@@ -1444,283 +1356,8 @@ async def _registry_standalone_send(platform_name, pconfig, chat_id, message, th
         return {"error": f"{platform_name} plugin not registered or missing standalone_sender_fn"}
     return await entry.standalone_sender_fn(pconfig, chat_id, message, thread_id=thread_id)
 
-
 # _send_whatsapp moved to plugins/platforms/whatsapp/adapter.py::_standalone_send,
 # wired via standalone_sender_fn and reached through _registry_standalone_send. #41112.
-
-
-async def _send_signal(extra, chat_id, message, media_files=None):
-    """Send via signal-cli JSON-RPC API.
-
-    Supports both text-only and text-with-attachments (images/audio/documents).
-    Multi-attachment sends are chunked into batches of
-    SIGNAL_MAX_ATTACHMENTS_PER_MSG and metered by the process-wide
-    SignalAttachmentScheduler — same bucket the gateway adapter uses, so
-    sends from this tool and inbound-driven replies share rate-limit state.
-    """
-    try:
-        import httpx
-    except ImportError:
-        return {"error": "httpx not installed"}
-
-    from gateway.platforms.signal_rate_limit import (
-        SIGNAL_BATCH_PACING_NOTICE_THRESHOLD,
-        SIGNAL_MAX_ATTACHMENTS_PER_MSG,
-        SIGNAL_RATE_LIMIT_MAX_ATTEMPTS,
-        _extract_retry_after_seconds,
-        _format_wait,
-        _is_signal_rate_limit_error,
-        _signal_send_timeout,
-        get_scheduler,
-    )
-    from gateway.platforms.signal_format import markdown_to_signal
-
-    try:
-        http_url = extra.get("http_url", "http://127.0.0.1:8080").rstrip("/")
-        account = extra.get("account", "")
-        if not account:
-            return {"error": "Signal account not configured"}
-
-        valid_media = media_files or []
-        attachment_paths = []
-        for media_path, _is_voice in valid_media:
-            if os.path.exists(media_path):
-                attachment_paths.append(media_path)
-            else:
-                logger.warning("Signal media file not found, skipping: %s", media_path)
-
-        # Chunk attachments. With no attachments we still emit one batch
-        # (text only). With attachments, the text rides on batch #0 so the
-        # caption isn't repeated across every chunk.
-        if attachment_paths:
-            att_batches = [
-                attachment_paths[i:i + SIGNAL_MAX_ATTACHMENTS_PER_MSG]
-                for i in range(0, len(attachment_paths), SIGNAL_MAX_ATTACHMENTS_PER_MSG)
-            ]
-        else:
-            att_batches = [[]]
-
-        plain_text, text_styles = markdown_to_signal(message)
-
-        async def _post(batch_attachments, batch_message):
-            params = {"account": account, "message": batch_message}
-            if batch_message and text_styles:
-                if len(text_styles) == 1:
-                    params["textStyle"] = text_styles[0]
-                else:
-                    params["textStyles"] = text_styles
-            if chat_id.startswith("group:"):
-                params["groupId"] = chat_id[6:]
-            else:
-                params["recipient"] = [chat_id]
-            if batch_attachments:
-                params["attachments"] = batch_attachments
-
-            payload = {
-                "jsonrpc": "2.0",
-                "method": "send",
-                "params": params,
-                "id": f"send_{int(time.time() * 1000)}",
-            }
-            timeout = _signal_send_timeout(len(batch_attachments) if batch_attachments else 0)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(f"{http_url}/api/v1/rpc", json=payload)
-                resp.raise_for_status()
-                return resp.json()
-
-        async def _send_inline_notice(text: str) -> None:
-            """Best-effort one-shot RPC for a user-facing pacing notice."""
-            notice_params = {"account": account, "message": text}
-            if chat_id.startswith("group:"):
-                notice_params["groupId"] = chat_id[6:]
-            else:
-                notice_params["recipient"] = [chat_id]
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as _client:
-                    await _client.post(
-                        f"{http_url}/api/v1/rpc",
-                        json={
-                            "jsonrpc": "2.0",
-                            "method": "send",
-                            "params": notice_params,
-                            "id": f"notice_{int(time.time() * 1000)}",
-                        },
-                    )
-            except Exception as _e:
-                logger.warning("Signal: inline notice failed: %s", _e)
-
-        scheduler = get_scheduler()
-        logger.info(
-            "send_message Signal: scheduler state=%s, %d attachment(s) in %d batch(es)",
-            scheduler.state(), len(attachment_paths), len(att_batches),
-        )
-        failed_batches: list[int] = []
-        for idx, att_batch in enumerate(att_batches):
-            n = len(att_batch)
-            if n > 0:
-                estimated = scheduler.estimate_wait(n)
-                if estimated >= SIGNAL_BATCH_PACING_NOTICE_THRESHOLD:
-                    await _send_inline_notice(
-                        f"(More images coming — pausing ~{_format_wait(estimated)} "
-                        f"for Signal rate limit, batch {idx + 1}/{len(att_batches)}.)"
-                    )
-
-            batch_message = plain_text if idx == 0 else ""
-
-            for attempt in range(1, SIGNAL_RATE_LIMIT_MAX_ATTEMPTS + 1):
-                try:
-                    await scheduler.acquire(n)
-                    _rpc_t0 = time.monotonic()
-                    data = await _post(att_batch, batch_message)
-                    _rpc_duration = time.monotonic() - _rpc_t0
-                    if "error" not in data:
-                        await scheduler.report_rpc_duration(_rpc_duration, n)
-                        break
-
-                    err = data["error"]
-
-                    if not _is_signal_rate_limit_error(err):
-                        return _error(f"Signal RPC error on batch {idx + 1}/{len(att_batches)}: {err}")
-
-                    server_retry_after = _extract_retry_after_seconds(err)
-                    scheduler.feedback(server_retry_after, n)
-
-                    if attempt >= SIGNAL_RATE_LIMIT_MAX_ATTEMPTS:
-                        failed_batches.append(idx + 1)
-                        logger.error(
-                            "Signal: rate-limit retries exhausted on batch %d/%d "
-                            "(%d attachments lost, server retry_after=%s)",
-                            idx + 1, len(att_batches), n,
-                            f"{server_retry_after:.0f}s" if server_retry_after else "unknown",
-                        )
-                        break
-                    logger.warning(
-                        "Signal: rate-limited on batch %d/%d "
-                        "(attempt %d/%d, server retry_after=%s); "
-                        "scheduler will pace the retry",
-                        idx + 1, len(att_batches),
-                        attempt, SIGNAL_RATE_LIMIT_MAX_ATTEMPTS,
-                        f"{server_retry_after:.0f}s" if server_retry_after else "unknown",
-                    )
-                except Exception as e:
-                    if attempt >= SIGNAL_RATE_LIMIT_MAX_ATTEMPTS:
-                        failed_batches.append(idx + 1)
-                        logger.error(
-                            "Signal: send error on batch %d/%d after %d attempts: %s",
-                            idx + 1, len(att_batches), attempt, str(e)
-                        )
-                        break
-                    logger.warning(
-                        "Signal: transient error on batch %d/%d (attempt %d/%d): %s; will retry",
-                        idx + 1, len(att_batches), attempt, SIGNAL_RATE_LIMIT_MAX_ATTEMPTS, str(e)
-                    )
-
-        warnings = []
-        if len(attachment_paths) < len(valid_media):
-            warnings.append("Some media files were skipped (not found on disk)")
-        if failed_batches:
-            warnings.append(
-                f"Signal rate-limited {len(failed_batches)} batch(es) "
-                f"(#{', #'.join(str(b) for b in failed_batches)})"
-            )
-
-        if failed_batches and len(failed_batches) == len(att_batches):
-            return _error(
-                f"Signal: every batch ({len(att_batches)}) hit rate limit; "
-                f"no attachments delivered"
-            )
-
-        result = {"success": True, "platform": "signal", "chat_id": _display_chat_id("signal", chat_id)}
-        if warnings:
-            result["warnings"] = warnings
-        return result
-    except Exception as e:
-        return _error(f"Signal send failed: {e}")
-
-
-# _send_email moved to plugins/platforms/email/adapter.py::_standalone_send;
-# _send_sms moved to plugins/platforms/sms/adapter.py::_standalone_send. Both
-# wired via standalone_sender_fn, reached through _registry_standalone_send. #41112.
-
-
-# _send_matrix moved to plugins/platforms/matrix/adapter.py::_standalone_send,
-# wired via standalone_sender_fn and reached through _registry_standalone_send. #41112.
-# (_send_matrix_via_adapter below stays — it's the native-media upload path.)
-
-
-async def _send_matrix_via_adapter(pconfig, chat_id, message, media_files=None, thread_id=None):
-    """Send via the Matrix adapter so native Matrix media uploads are preserved.
-
-    When a live gateway adapter is available (i.e. the tool runs inside a
-    running gateway), the persistent connection is reused — one olm/megolm
-    session for all sends.  This avoids per-message E2EE re-init storms
-    that exhaust recipient OTKs and silently drop messages (issue #46310).
-
-    Falls back to an ephemeral connect/disconnect cycle only when no gateway
-    is running (standalone cron, ``hermes send`` CLI).
-    """
-    media_files = media_files or []
-    metadata = {"thread_id": thread_id} if thread_id else None
-
-    # --- Try the live gateway adapter first (persistent E2EE session) ---
-    # Reusing the running gateway's already-connected adapter is the whole
-    # point of #46310: it avoids a per-send login + olm/megolm re-init + OTK
-    # claim that, under burst sends, exhausts recipient one-time keys and
-    # silently drops messages. The import is guarded narrowly (gateway code may
-    # be absent in some standalone contexts); a runner that *exists* but whose
-    # adapter lookup fails is logged rather than silently swallowed, because a
-    # silent fall-through here would re-introduce the exact reconnect storm
-    # this fix prevents.
-    live_adapter = None
-    runner = None
-    try:
-        from gateway.run import _gateway_runner_ref
-        runner = _gateway_runner_ref()
-    except Exception:
-        runner = None
-    if runner is not None:
-        try:
-            from gateway.config import Platform
-            live_adapter = runner.adapters.get(Platform.MATRIX)
-        except Exception:
-            logger.warning(
-                "Matrix: live gateway adapter lookup failed; falling back to an "
-                "ephemeral connect (may re-init E2EE per send, see #46310)",
-                exc_info=True,
-            )
-            live_adapter = None
-
-    if live_adapter is not None:
-        # NOTE: the live adapter is owned by the gateway — we must NOT
-        # disconnect it. Correctness here depends on this branch returning
-        # before the ephemeral ``adapter`` is constructed below, so the
-        # ephemeral ``finally`` disconnect never touches the live session.
-        return await _matrix_send_core(
-            live_adapter, chat_id, message, media_files, metadata
-        )
-
-    # --- Fallback: ephemeral adapter (standalone / cron context) ---
-    try:
-        from plugins.platforms.matrix.adapter import MatrixAdapter
-    except ImportError:
-        return {"error": "Matrix dependencies not installed. Run: pip install 'mautrix[encryption]'"}
-
-    adapter = MatrixAdapter(pconfig)
-    try:
-        connected = await adapter.connect()
-        if not connected:
-            return _error("Matrix connect failed")
-        return await _matrix_send_core(
-            adapter, chat_id, message, media_files, metadata
-        )
-    except Exception as e:
-        return _error(f"Matrix send failed: {e}")
-    finally:
-        try:
-            await adapter.disconnect()
-        except Exception:
-            pass
-
 
 async def _matrix_send_core(adapter, chat_id, message, media_files, metadata):
     """Core send logic shared by live and ephemeral Matrix adapters."""
@@ -1760,35 +1397,11 @@ async def _matrix_send_core(adapter, chat_id, message, media_files, metadata):
         "message_id": last_result.message_id,
     }
 
-
 # _send_dingtalk moved to plugins/platforms/dingtalk/adapter.py::_standalone_send,
 # wired via standalone_sender_fn and reached through _registry_standalone_send. #41112.
 
-
 # _send_wecom moved to plugins/platforms/wecom/adapter.py::_standalone_send,
 # wired via standalone_sender_fn and reached through _registry_standalone_send. #41112.
-
-
-async def _send_weixin(pconfig, chat_id, message, media_files=None):
-    """Send via Weixin iLink using the native adapter helper."""
-    try:
-        from gateway.platforms.weixin import check_weixin_requirements, send_weixin_direct
-        if not check_weixin_requirements():
-            return {"error": "Weixin requirements not met. Need aiohttp + cryptography."}
-    except ImportError:
-        return {"error": "Weixin adapter not available."}
-
-    try:
-        return await send_weixin_direct(
-            extra=pconfig.extra,
-            token=pconfig.token,
-            chat_id=chat_id,
-            message=message,
-            media_files=media_files,
-        )
-    except Exception as e:
-        return _error(f"Weixin send failed: {e}")
-
 
 async def _send_bluebubbles(extra, chat_id, message):
     """Send via BlueBubbles iMessage server using the adapter's REST API."""
@@ -1816,11 +1429,9 @@ async def _send_bluebubbles(extra, chat_id, message):
     except Exception as e:
         return _error(f"BlueBubbles send failed: {e}")
 
-
 # _send_feishu moved to plugins/platforms/feishu/adapter.py::_standalone_send,
 # wired via standalone_sender_fn and reached through _registry_standalone_send
 # (and the feishu media branch above). #41112.
-
 
 def _check_send_message():
     """Gate send_message on gateway running (always available on messaging platforms).
@@ -1846,7 +1457,6 @@ def _check_send_message():
         return is_gateway_running()
     except Exception:
         return False
-
 
 async def _send_qqbot(pconfig, chat_id, message):
     """Send via QQBot using the REST API directly (no WebSocket needed).
@@ -1919,7 +1529,6 @@ async def _send_qqbot(pconfig, chat_id, message):
     except Exception as e:
         return _error(f"QQBot send failed: {e}")
 
-
 async def _send_yuanbao(chat_id, message, media_files=None):
     """Send via Yuanbao using the running gateway adapter's WebSocket connection.
 
@@ -1947,7 +1556,6 @@ async def _send_yuanbao(chat_id, message, media_files=None):
         return await send_yuanbao_direct(adapter, chat_id, message, media_files=media_files)
     except Exception as e:
         return _error(f"Yuanbao send failed: {e}")
-
 
 # --- Registry ---
 from tools.registry import tool_error
