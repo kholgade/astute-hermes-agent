@@ -2821,10 +2821,11 @@ DEFAULT_CONFIG = {
     # in the model-facing tools array with three bridge tools —
     # tool_search / tool_describe / tool_call — and surfaced on demand.
     #
-    # Core Hermes tools (terminal, read_file, write_file, patch,
-    # search_files, todo, memory, browser_*, etc.) are NEVER deferred.
-    # See tools/tool_search.py for full design notes and the
-    # openclaw-tool-search-report PDF in this PR for the rationale.
+    # By default core Hermes tools (terminal, read_file, write_file, patch,
+    # search_files, todo, memory, browser_*, etc.) are NEVER deferred — only
+    # MCP/plugin tools are. Set ``minimal_core`` to also defer specialized
+    # core tools (see below). See tools/tool_search.py for full design notes
+    # and the openclaw-tool-search-report PDF in this PR for the rationale.
     "tools": {
         "tool_search": {
             # "auto" (default) — activate only when deferrable tool schemas
@@ -2843,6 +2844,20 @@ DEFAULT_CONFIG = {
             "search_default_limit": 5,
             # Hard upper bound the model can request via ``limit``. Range 1..50.
             "max_search_limit": 20,
+            # minimal_core (default false): shrink the always-on tool set to a
+            # lean substrate — file (read/write/patch/search), terminal +
+            # process, execute_code, web_search/web_extract, and the skills
+            # loaders (skills_list/skill_view/skill_manage). Every other core
+            # tool (browser_*, vision_analyze, image_generate, memory, todo,
+            # clarify, session_search, delegate_task, cronjob, tts,
+            # computer_use, ...) becomes deferrable and is surfaced on demand
+            # through the bridges. This is the big lever for cutting the
+            # per-turn tool-schema token cost on minimal/headless deployments
+            # (issue #17). Requires ``enabled`` to be "auto" or "on"; with
+            # "auto" the specialized tools still only defer once their schemas
+            # cross ``threshold_pct``, so large-context models keep the full
+            # set until it actually matters.
+            "minimal_core": False,
         },
     },
 
