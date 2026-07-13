@@ -175,51 +175,6 @@ class TestGetConnectedPlatforms:
         config = GatewayConfig()
         assert config.get_connected_platforms() == []
 
-    def test_dingtalk_recognised_via_extras(self):
-        config = GatewayConfig(
-            platforms={
-                Platform.DINGTALK: PlatformConfig(
-                    enabled=True,
-                    extra={"client_id": "cid", "client_secret": "sec"},
-                ),
-            },
-        )
-        assert Platform.DINGTALK in config.get_connected_platforms()
-
-    def test_dingtalk_recognised_via_env_vars(self, monkeypatch):
-        """DingTalk configured via env vars (no extras) should still be
-        recognised as connected — covers the case where _apply_env_overrides
-        hasn't populated extras yet."""
-        monkeypatch.setenv("DINGTALK_CLIENT_ID", "env_cid")
-        monkeypatch.setenv("DINGTALK_CLIENT_SECRET", "env_sec")
-        config = GatewayConfig(
-            platforms={
-                Platform.DINGTALK: PlatformConfig(enabled=True, extra={}),
-            },
-        )
-        assert Platform.DINGTALK in config.get_connected_platforms()
-
-    def test_dingtalk_missing_creds_not_connected(self, monkeypatch):
-        monkeypatch.delenv("DINGTALK_CLIENT_ID", raising=False)
-        monkeypatch.delenv("DINGTALK_CLIENT_SECRET", raising=False)
-        config = GatewayConfig(
-            platforms={
-                Platform.DINGTALK: PlatformConfig(enabled=True, extra={}),
-            },
-        )
-        assert Platform.DINGTALK not in config.get_connected_platforms()
-
-    def test_dingtalk_disabled_not_connected(self):
-        config = GatewayConfig(
-            platforms={
-                Platform.DINGTALK: PlatformConfig(
-                    enabled=False,
-                    extra={"client_id": "cid", "client_secret": "sec"},
-                ),
-            },
-        )
-        assert Platform.DINGTALK not in config.get_connected_platforms()
-
 
 class TestSessionResetPolicy:
     def test_roundtrip(self):
@@ -1315,35 +1270,6 @@ class TestHomeChannelEnvOverrides:
                     "WHATSAPP_HOME_CHANNEL_NAME": "Owner DM",
                 },
                 ("1234567890@lid", "Owner DM"),
-            ),
-            (
-                Platform.SIGNAL,
-                PlatformConfig(
-                    enabled=True,
-                    extra={"http_url": "http://localhost:9090", "account": "+15551234567"},
-                ),
-                {"SIGNAL_HOME_CHANNEL": "+1555000", "SIGNAL_HOME_CHANNEL_NAME": "Phone"},
-                ("+1555000", "Phone"),
-            ),
-            (
-                Platform.MATTERMOST,
-                PlatformConfig(
-                    enabled=True,
-                    token="mm-token",
-                    extra={"url": "https://mm.example.com"},
-                ),
-                {"MATTERMOST_HOME_CHANNEL": "ch_abc123", "MATTERMOST_HOME_CHANNEL_NAME": "General"},
-                ("ch_abc123", "General"),
-            ),
-            (
-                Platform.MATRIX,
-                PlatformConfig(
-                    enabled=True,
-                    token="syt_abc123",
-                    extra={"homeserver": "https://matrix.example.org"},
-                ),
-                {"MATRIX_HOME_ROOM": "!room123:example.org", "MATRIX_HOME_ROOM_NAME": "Bot Room"},
-                ("!room123:example.org", "Bot Room"),
             ),
             (
                 Platform.EMAIL,

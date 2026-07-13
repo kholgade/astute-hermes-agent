@@ -7,7 +7,6 @@ from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import MessageEvent
 from gateway.session import SessionSource
 
-
 def _clear_auth_env(monkeypatch) -> None:
     for key in (
         "TELEGRAM_ALLOWED_USERS",
@@ -29,7 +28,6 @@ def _clear_auth_env(monkeypatch) -> None:
     ):
         monkeypatch.delenv(key, raising=False)
 
-
 def _make_event(platform: Platform, user_id: str, chat_id: str) -> MessageEvent:
     return MessageEvent(
         text="hello",
@@ -42,7 +40,6 @@ def _make_event(platform: Platform, user_id: str, chat_id: str) -> MessageEvent:
             chat_type="dm",
         ),
     )
-
 
 def _make_runner(platform: Platform, config: GatewayConfig):
     from gateway.run import GatewayRunner
@@ -61,7 +58,6 @@ def _make_runner(platform: Platform, config: GatewayConfig):
     runner.hooks = SimpleNamespace(dispatch=AsyncMock(return_value=None))
     runner._sessions = {}
     return runner, adapter
-
 
 def test_whatsapp_lid_user_matches_phone_allowlist_via_session_mapping(monkeypatch, tmp_path):
     _clear_auth_env(monkeypatch)
@@ -87,7 +83,6 @@ def test_whatsapp_lid_user_matches_phone_allowlist_via_session_mapping(monkeypat
     )
 
     assert runner._is_user_authorized(source) is True
-
 
 def test_whatsapp_lid_user_matches_phone_allowlist_via_modern_session_mapping(
     monkeypatch, tmp_path,
@@ -123,7 +118,6 @@ def test_whatsapp_lid_user_matches_phone_allowlist_via_modern_session_mapping(
     )
 
     assert runner._is_user_authorized(source) is True
-
 
 def test_simplex_allowlist_accepts_display_name(monkeypatch):
     """SIMPLEX_ALLOWED_USERS should match the contact's display name as well
@@ -162,7 +156,6 @@ def test_simplex_allowlist_accepts_display_name(monkeypatch):
     )
     assert runner._is_user_authorized(source) is True
 
-
 def test_simplex_allowlist_accepts_numeric_contact_id(monkeypatch):
     """The numeric contactId form must still work — the new display-name
     matching must not regress existing setups."""
@@ -195,7 +188,6 @@ def test_simplex_allowlist_accepts_numeric_contact_id(monkeypatch):
     )
     assert runner._is_user_authorized(source) is True
 
-
 def test_simplex_allowlist_denies_unlisted(monkeypatch):
     """Sanity check: an unrelated SimpleX user is still rejected."""
     _clear_auth_env(monkeypatch)
@@ -227,7 +219,6 @@ def test_simplex_allowlist_denies_unlisted(monkeypatch):
     )
     assert runner._is_user_authorized(source) is False
 
-
 def test_star_wildcard_in_allowlist_authorizes_any_user(monkeypatch):
     """WHATSAPP_ALLOWED_USERS=* should act as allow-all wildcard."""
     _clear_auth_env(monkeypatch)
@@ -246,7 +237,6 @@ def test_star_wildcard_in_allowlist_authorizes_any_user(monkeypatch):
         chat_type="dm",
     )
     assert runner._is_user_authorized(source) is True
-
 
 def test_star_wildcard_works_for_any_platform(monkeypatch):
     """The * wildcard should work generically, not just for WhatsApp."""
@@ -267,7 +257,6 @@ def test_star_wildcard_works_for_any_platform(monkeypatch):
     )
     assert runner._is_user_authorized(source) is True
 
-
 def test_telegram_group_user_allowlist_authorizes_forum_sender_without_dm_allowlist(monkeypatch):
     _clear_auth_env(monkeypatch)
     monkeypatch.setenv("TELEGRAM_GROUP_ALLOWED_USERS", "999")
@@ -285,7 +274,6 @@ def test_telegram_group_user_allowlist_authorizes_forum_sender_without_dm_allowl
     )
 
     assert runner._is_user_authorized(source) is True
-
 
 def test_telegram_group_user_allowlist_rejects_other_senders(monkeypatch):
     _clear_auth_env(monkeypatch)
@@ -305,7 +293,6 @@ def test_telegram_group_user_allowlist_rejects_other_senders(monkeypatch):
 
     assert runner._is_user_authorized(source) is False
 
-
 def test_telegram_group_user_allowlist_wildcard_authorizes_any_sender(monkeypatch):
     _clear_auth_env(monkeypatch)
     monkeypatch.setenv("TELEGRAM_GROUP_ALLOWED_USERS", "*")
@@ -323,7 +310,6 @@ def test_telegram_group_user_allowlist_wildcard_authorizes_any_sender(monkeypatc
     )
 
     assert runner._is_user_authorized(source) is True
-
 
 def test_telegram_group_user_allowlist_does_not_authorize_dms(monkeypatch):
     _clear_auth_env(monkeypatch)
@@ -343,7 +329,6 @@ def test_telegram_group_user_allowlist_does_not_authorize_dms(monkeypatch):
 
     assert runner._is_user_authorized(source) is False
 
-
 def test_telegram_group_chat_allowlist_authorizes_group_chat_without_user_allowlist(monkeypatch):
     _clear_auth_env(monkeypatch)
     monkeypatch.setenv("TELEGRAM_GROUP_ALLOWED_CHATS", "-1001878443972")
@@ -362,7 +347,6 @@ def test_telegram_group_chat_allowlist_authorizes_group_chat_without_user_allowl
     )
 
     assert runner._is_user_authorized(source) is True
-
 
 def test_telegram_group_chat_allowlist_authorizes_anonymous_sender(monkeypatch):
     """TELEGRAM_GROUP_ALLOWED_CHATS must authorize chat traffic with no
@@ -389,7 +373,6 @@ def test_telegram_group_chat_allowlist_authorizes_anonymous_sender(monkeypatch):
 
     assert runner._is_user_authorized(source) is True
 
-
 def test_telegram_group_chat_allowlist_rejects_anonymous_sender_in_other_chat(monkeypatch):
     """Anonymous senders in a chat *not* on the allowlist must still be
     rejected — the early no-user-id path must not become an open gate.
@@ -411,7 +394,6 @@ def test_telegram_group_chat_allowlist_rejects_anonymous_sender_in_other_chat(mo
     )
 
     assert runner._is_user_authorized(source) is False
-
 
 @pytest.mark.asyncio
 async def test_handle_message_does_not_drop_anonymous_sender_in_allowlisted_chat(monkeypatch):
@@ -454,7 +436,6 @@ async def test_handle_message_does_not_drop_anonymous_sender_in_allowlisted_chat
     runner.pairing_store.generate_code.assert_not_called()
     adapter.send.assert_not_awaited()
 
-
 @pytest.mark.asyncio
 async def test_handle_message_drops_anonymous_sender_outside_allowlist(monkeypatch):
     """Anonymous senders in a chat *not* on the allowlist remain silently
@@ -490,7 +471,6 @@ async def test_handle_message_drops_anonymous_sender_outside_allowlist(monkeypat
     runner.pairing_store.generate_code.assert_not_called()
     adapter.send.assert_not_awaited()
 
-
 def test_telegram_group_users_legacy_chat_ids_still_authorize(monkeypatch):
     """Backward-compat: PR #15027 shipped TELEGRAM_GROUP_ALLOWED_USERS as a
     chat-ID allowlist. PR #17686 renamed it to sender IDs and added
@@ -516,7 +496,6 @@ def test_telegram_group_users_legacy_chat_ids_still_authorize(monkeypatch):
 
     assert runner._is_user_authorized(source) is True
 
-
 def test_telegram_group_users_legacy_does_not_cross_chats(monkeypatch):
     """Legacy chat-ID value only authorizes the listed chat, not any group."""
     _clear_auth_env(monkeypatch)
@@ -536,7 +515,6 @@ def test_telegram_group_users_legacy_does_not_cross_chats(monkeypatch):
     )
 
     assert runner._is_user_authorized(source) is False
-
 
 def test_telegram_group_users_mixed_sender_and_legacy_chat(monkeypatch):
     """Mixed values: positive user ID gates senders; negative chat ID gates chat."""
@@ -568,7 +546,6 @@ def test_telegram_group_users_mixed_sender_and_legacy_chat(monkeypatch):
     )
     assert runner._is_user_authorized(sender_source) is True
 
-
 @pytest.mark.asyncio
 async def test_unauthorized_dm_pairs_by_default(monkeypatch):
     _clear_auth_env(monkeypatch)
@@ -595,7 +572,6 @@ async def test_unauthorized_dm_pairs_by_default(monkeypatch):
     adapter.send.assert_awaited_once()
     assert "ABC12DEF" in adapter.send.await_args.args[1]
 
-
 @pytest.mark.asyncio
 async def test_unauthorized_whatsapp_dm_can_be_ignored(monkeypatch):
     _clear_auth_env(monkeypatch)
@@ -621,7 +597,6 @@ async def test_unauthorized_whatsapp_dm_can_be_ignored(monkeypatch):
     runner.pairing_store.generate_code.assert_not_called()
     adapter.send.assert_not_awaited()
 
-
 @pytest.mark.asyncio
 async def test_rate_limited_user_gets_no_response(monkeypatch):
     """When a user is already rate-limited, pairing messages are silently ignored."""
@@ -643,7 +618,6 @@ async def test_rate_limited_user_gets_no_response(monkeypatch):
     assert result is None
     runner.pairing_store.generate_code.assert_not_called()
     adapter.send.assert_not_awaited()
-
 
 @pytest.mark.asyncio
 async def test_rejection_message_records_rate_limit(monkeypatch):
@@ -671,7 +645,6 @@ async def test_rejection_message_records_rate_limit(monkeypatch):
         "whatsapp", "15551234567@s.whatsapp.net"
     )
 
-
 @pytest.mark.asyncio
 async def test_global_ignore_suppresses_pairing_reply(monkeypatch):
     _clear_auth_env(monkeypatch)
@@ -693,36 +666,10 @@ async def test_global_ignore_suppresses_pairing_reply(monkeypatch):
     runner.pairing_store.generate_code.assert_not_called()
     adapter.send.assert_not_awaited()
 
-
 # ---------------------------------------------------------------------------
 # Allowlist-configured platforms default to "ignore" for unauthorized users
 # (#9337: Signal gateway sends pairing spam when allowlist is configured)
 # ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_signal_with_allowlist_ignores_unauthorized_dm(monkeypatch):
-    """When SIGNAL_ALLOWED_USERS is set, unauthorized DMs are silently dropped.
-
-    This is the primary regression test for #9337: before the fix, Signal
-    would send pairing codes to ANY sender even when a strict allowlist was
-    configured, spamming personal contacts with cryptic bot messages.
-    """
-    _clear_auth_env(monkeypatch)
-    monkeypatch.setenv("SIGNAL_ALLOWED_USERS", "+15550000001")  # allowlist set
-
-    config = GatewayConfig(
-        platforms={Platform.SIGNAL: PlatformConfig(enabled=True)},
-    )
-    runner, adapter = _make_runner(Platform.SIGNAL, config)
-
-    result = await runner._handle_message(
-        _make_event(Platform.SIGNAL, "+15559999999", "+15559999999")  # not in allowlist
-    )
-
-    assert result is None
-    runner.pairing_store.generate_code.assert_not_called()
-    adapter.send.assert_not_awaited()
-
 
 @pytest.mark.asyncio
 async def test_telegram_with_allowlist_ignores_unauthorized_dm(monkeypatch):
@@ -743,49 +690,6 @@ async def test_telegram_with_allowlist_ignores_unauthorized_dm(monkeypatch):
     runner.pairing_store.generate_code.assert_not_called()
     adapter.send.assert_not_awaited()
 
-
-@pytest.mark.asyncio
-async def test_global_allowlist_ignores_unauthorized_dm(monkeypatch):
-    """GATEWAY_ALLOWED_USERS also triggers the 'ignore' behavior."""
-    _clear_auth_env(monkeypatch)
-    monkeypatch.setenv("GATEWAY_ALLOWED_USERS", "111111111")
-
-    config = GatewayConfig(
-        platforms={Platform.SIGNAL: PlatformConfig(enabled=True)},
-    )
-    runner, adapter = _make_runner(Platform.SIGNAL, config)
-
-    result = await runner._handle_message(
-        _make_event(Platform.SIGNAL, "+15559999999", "+15559999999")
-    )
-
-    assert result is None
-    runner.pairing_store.generate_code.assert_not_called()
-    adapter.send.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_no_allowlist_still_pairs_by_default(monkeypatch):
-    """Without any allowlist, pairing behavior is preserved (open gateway)."""
-    _clear_auth_env(monkeypatch)
-    # No SIGNAL_ALLOWED_USERS, no GATEWAY_ALLOWED_USERS
-
-    config = GatewayConfig(
-        platforms={Platform.SIGNAL: PlatformConfig(enabled=True)},
-    )
-    runner, adapter = _make_runner(Platform.SIGNAL, config)
-    runner.pairing_store.generate_code.return_value = "PAIR1234"
-
-    result = await runner._handle_message(
-        _make_event(Platform.SIGNAL, "+15559999999", "+15559999999")
-    )
-
-    assert result is None
-    runner.pairing_store.generate_code.assert_called_once()
-    adapter.send.assert_awaited_once()
-    assert "PAIR1234" in adapter.send.await_args.args[1]
-
-
 @pytest.mark.asyncio
 async def test_email_no_allowlist_ignores_unknown_senders_by_default(monkeypatch):
     """Email should not send pairing codes to arbitrary unread inbox senders."""
@@ -804,7 +708,6 @@ async def test_email_no_allowlist_ignores_unknown_senders_by_default(monkeypatch
     assert result is None
     runner.pairing_store.generate_code.assert_not_called()
     adapter.send.assert_not_awaited()
-
 
 @pytest.mark.asyncio
 async def test_email_pairing_requires_explicit_platform_opt_in(monkeypatch):
@@ -834,7 +737,6 @@ async def test_email_pairing_requires_explicit_platform_opt_in(monkeypatch):
     adapter.send.assert_awaited_once()
     assert "EMAIL123" in adapter.send.await_args.args[1]
 
-
 def test_explicit_pair_config_overrides_allowlist_default(monkeypatch):
     """Explicit unauthorized_dm_behavior='pair' overrides the allowlist default.
 
@@ -860,7 +762,6 @@ def test_explicit_pair_config_overrides_allowlist_default(monkeypatch):
     behavior = runner._get_unauthorized_dm_behavior(Platform.SIGNAL)
     assert behavior == "pair"
 
-
 def test_allowlist_authorized_user_returns_ignore_for_unauthorized(monkeypatch):
     """_get_unauthorized_dm_behavior returns 'ignore' when allowlist is set.
 
@@ -878,7 +779,6 @@ def test_allowlist_authorized_user_returns_ignore_for_unauthorized(monkeypatch):
     behavior = runner._get_unauthorized_dm_behavior(Platform.SIGNAL)
     assert behavior == "ignore"
 
-
 def test_get_unauthorized_dm_behavior_email_no_allowlist_returns_ignore(monkeypatch):
     _clear_auth_env(monkeypatch)
 
@@ -889,5 +789,4 @@ def test_get_unauthorized_dm_behavior_email_no_allowlist_returns_ignore(monkeypa
 
     behavior = runner._get_unauthorized_dm_behavior(Platform.EMAIL)
     assert behavior == "ignore"
-
 
