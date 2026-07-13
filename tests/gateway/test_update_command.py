@@ -390,10 +390,10 @@ class TestUpdateCommandPlatformGate:
 
     @pytest.mark.asyncio
     async def test_blocks_programmatic_interface(self, monkeypatch):
-        """``Platform.WEBHOOK`` is not a messaging platform and must be
+        """``Platform.LOCAL`` is not a messaging platform and must be
         blocked by the allowlist gate before any side effects fire."""
         runner = _make_runner()
-        event = _make_event(platform=Platform.WEBHOOK)
+        event = _make_event(platform=Platform.LOCAL)
         monkeypatch.setenv("HERMES_MANAGED", "")
 
         # Guard: platform gate must fire before any real subprocess spawn.
@@ -454,57 +454,6 @@ class TestUpdateCommandPlatformGate:
         # ``platform_not_messaging`` rejection string is acceptable here.
         # Later steps may legitimately return success ("Starting Hermes
         # update…") or fail for environment reasons.
-        assert "only available from messaging platforms" not in result
-
-    @pytest.mark.asyncio
-    async def test_allows_mattermost_via_registry_fallback(self, monkeypatch):
-        """Same as DISCORD: MATTERMOST is now plugin-migrated and not in
-        the hardcoded frozenset; the registry must keep /update working.
-        """
-        from gateway.run import GatewayRunner
-
-        assert Platform.MATTERMOST not in GatewayRunner._UPDATE_ALLOWED_PLATFORMS
-
-        from hermes_cli.plugins import PluginManager
-        PluginManager().discover_and_load(force=True)
-        from gateway.platform_registry import platform_registry
-        mm_entry = platform_registry.get("mattermost")
-        assert mm_entry is not None
-        assert mm_entry.allow_update_command is True
-
-        runner = _make_runner()
-        event = _make_event(platform=Platform.MATTERMOST)
-        monkeypatch.setenv("HERMES_MANAGED", "")
-
-        with patch("subprocess.Popen"):
-            result = await runner._handle_update_command(event)
-
-        assert "only available from messaging platforms" not in result
-
-    @pytest.mark.asyncio
-    async def test_allows_homeassistant_via_registry_fallback(self, monkeypatch):
-        """Same as DISCORD/MATTERMOST: HOMEASSISTANT is now plugin-migrated
-        (PR #40709) and not in the hardcoded frozenset; the registry must
-        keep /update working via ``allow_update_command=True``.
-        """
-        from gateway.run import GatewayRunner
-
-        assert Platform.HOMEASSISTANT not in GatewayRunner._UPDATE_ALLOWED_PLATFORMS
-
-        from hermes_cli.plugins import PluginManager
-        PluginManager().discover_and_load(force=True)
-        from gateway.platform_registry import platform_registry
-        ha_entry = platform_registry.get("homeassistant")
-        assert ha_entry is not None
-        assert ha_entry.allow_update_command is True
-
-        runner = _make_runner()
-        event = _make_event(platform=Platform.HOMEASSISTANT)
-        monkeypatch.setenv("HERMES_MANAGED", "")
-
-        with patch("subprocess.Popen"):
-            result = await runner._handle_update_command(event)
-
         assert "only available from messaging platforms" not in result
 
     @pytest.mark.asyncio

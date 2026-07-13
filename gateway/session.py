@@ -332,9 +332,7 @@ class SessionContext:
 
 _PII_SAFE_PLATFORMS = frozenset({
     Platform.WHATSAPP,
-    Platform.SIGNAL,
     Platform.TELEGRAM,
-    Platform.BLUEBUBBLES,
 })
 """Platforms where user IDs can be safely redacted (no in-message mention system
 that requires raw IDs).  Discord is excluded because mentions use ``<@user_id>``
@@ -453,22 +451,6 @@ def build_session_context_prompt(
             f"**Channel Topic:** {_format_untrusted_prompt_value(context.source.chat_topic)}"
         )
 
-    if context.source.platform == Platform.MATRIX:
-        src = context.source
-        room_name = src.chat_name or src.chat_id
-        room_id = _hash_chat_id(src.chat_id) if redact_pii else src.chat_id
-        lines.append("")
-        lines.append(f"**Matrix Room:** {_format_untrusted_prompt_value(room_name)}")
-        lines.append(f"**Matrix Room ID:** {room_id}")
-        if src.thread_id:
-            thread_id = _hash_chat_id(src.thread_id) if redact_pii else src.thread_id
-            lines.append(f"**Matrix Thread:** {thread_id}")
-        lines.append(
-            "**Matrix room boundary:** Treat this turn as scoped to the current "
-            "Matrix room/thread only. Do not assume unresolved references are "
-            "about other Matrix rooms or projects unless the user explicitly says so."
-        )
-
     # User identity.
     # In shared multi-user sessions (shared threads OR shared non-thread groups
     # when group_sessions_per_user=False), multiple users contribute to the same
@@ -493,17 +475,7 @@ def build_session_context_prompt(
         lines.append(f"**User ID:** {_format_untrusted_prompt_value(uid)}")
 
     # Platform-specific behavioral notes
-    if context.source.platform == Platform.SLACK:
-        lines.append("")
-        lines.append(
-            "**Platform notes:** You are running inside Slack. "
-            "You do NOT have access to Slack-specific APIs — you cannot search "
-            "channel history, pin/unpin messages, manage channels, or list users. "
-            "Do not promise to perform these actions. The gateway may inline the "
-            "current message's Slack block/attachment payload when available, but "
-            "you still cannot call Slack APIs yourself."
-        )
-    elif context.source.platform == Platform.DISCORD:
+    if context.source.platform == Platform.DISCORD:
         # Inject the Discord IDs block only when the agent actually has
         # Discord tools loaded this session — i.e. the user opted into
         # `discord` / `discord_admin` via `hermes tools` AND the bot
@@ -541,27 +513,6 @@ def build_session_context_prompt(
                 "Do not promise to perform these actions. If the user asks, explain "
                 "that you can only read messages sent directly to you and respond."
             )
-    elif context.source.platform == Platform.BLUEBUBBLES:
-        lines.append("")
-        lines.append(
-            "**Platform notes:** You are responding via iMessage. "
-            "Keep responses short and conversational — think texts, not essays. "
-            "Structure longer replies as separate short thoughts, each separated "
-            "by a blank line (double newline). Each block between blank lines "
-            "will be delivered as its own iMessage bubble, so write accordingly: "
-            "one idea per bubble, 1–3 sentences each. "
-            "If the user needs a detailed answer, give the short version first "
-            "and offer to elaborate."
-        )
-    elif context.source.platform == Platform.YUANBAO:
-        lines.append("")
-        lines.append(
-            "**Platform notes:** You are running inside Yuanbao. "
-            "To send a private (DM) message to a user in the current group, "
-            "use the yb_send_dm tool (look up the recipient by name or pass "
-            "their user_id). Your normal reply is delivered to the group you "
-            "are responding in."
-        )
 
     # Connected platforms
     platforms_list = ["local (files on this machine)"]

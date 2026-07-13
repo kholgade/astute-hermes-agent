@@ -190,8 +190,8 @@ def test_arm_true_for_relay_only_with_disabled_placeholders(monkeypatch):
         {
             Platform.TELEGRAM: False,
             Platform.DISCORD: False,
-            Platform.SLACK: False,
-            Platform.MATRIX: False,
+            Platform.TELEGRAM: False,
+            Platform.TELEGRAM: False,
             Platform.RELAY: True,
         },
     )

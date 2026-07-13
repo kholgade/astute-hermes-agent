@@ -1,11 +1,9 @@
 // Desktop i18n type contract.
 //
 // `Translations` is the single source of truth for every translatable string
-// surface. Fully translated locale files may satisfy this interface directly;
-// partial locales should use `defineLocale()` so missing desktop-only strings
-// fall back to English while new keys remain type-checked.
+// surface. English is the only supported locale.
 
-export type Locale = 'en' | 'zh' | 'zh-hant' | 'ja'
+export type Locale = 'en'
 
 export type ToolTitleKey =
   | 'browser_click'
@@ -245,16 +243,6 @@ export interface Translations {
     conflictWith: (label: string) => string
     categories: Record<string, string>
     actions: Record<string, string>
-  }
-
-  language: {
-    label: string
-    description: string
-    saving: string
-    saveError: string
-    switchTo: string
-    searchPlaceholder: string
-    noResults: string
   }
 
   settings: {

@@ -14,7 +14,7 @@ vi.mock('@/store/notifications', () => ({ notifyError: vi.fn() }))
 
 function renderPrompts() {
   render(
-    <I18nProvider configClient={null}>
+    <I18nProvider>
       <PromptOverlays />
     </I18nProvider>
   )

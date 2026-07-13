@@ -254,9 +254,9 @@ def make_adapter(platform: Platform, runner=None):
         with patch.object(ThreadParticipationTracker, "_load", return_value=set()):
             adapter = DiscordAdapter(config)
         platform_key = Platform.DISCORD
-    elif platform == Platform.SLACK:
+    elif platform == Platform("slack"):
         adapter = SlackAdapter(config)
-        platform_key = Platform.SLACK
+        platform_key = Platform("slack")
     else:
         adapter = TelegramAdapter(config)
         platform_key = Platform.TELEGRAM
@@ -287,7 +287,7 @@ async def send_and_capture(adapter, text: str, platform: Platform, **event_kwarg
 
 
 # Parametrized fixtures for platform-generic tests
-@pytest.fixture(params=[Platform.TELEGRAM, Platform.DISCORD, Platform.SLACK], ids=["telegram", "discord", "slack"])
+@pytest.fixture(params=[Platform.TELEGRAM, Platform.DISCORD, Platform("slack")], ids=["telegram", "discord", "slack"])
 def platform(request):
     return request.param
 

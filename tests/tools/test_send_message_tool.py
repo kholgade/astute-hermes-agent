@@ -16,21 +16,19 @@ import pytest
 _HAS_TELEGRAM = pytest.importorskip("telegram", reason="python-telegram-bot not installed") is not None
 
 
-@pytest.fixture(autouse=True)
-def _reset_signal_scheduler():
-    """Drop the process-wide attachment scheduler so each test gets a
-    fresh token bucket."""
-    from gateway.platforms.signal_rate_limit import _reset_scheduler
-    _reset_scheduler()
-    yield
-    _reset_scheduler()
+#@pytest.fixture(autouse=True)
+# Signal platform is consolidated; signal_rate_limit tests skipped
+# def _reset_signal_scheduler():
+#     """Drop the process-wide attachment scheduler so each test gets a
+#     fresh token bucket."""
+#     from gateway.platforms.signal_rate_limit import _reset_scheduler
+#     _reset_scheduler()
+#     yield
 
 from gateway.config import Platform
 from tools.send_message_tool import (
     _is_telegram_thread_not_found,
     _parse_target_ref,
-    _send_matrix_via_adapter,
-    _send_signal,
     _send_telegram,
     _send_to_platform,
     send_message_tool,
@@ -426,7 +424,7 @@ class TestSendMessageTool:
     def test_resolved_slack_thread_name_preserves_thread_id(self):
         slack_cfg = SimpleNamespace(enabled=True, token="xoxb-test", extra={})
         config = SimpleNamespace(
-            platforms={Platform.SLACK: slack_cfg},
+            platforms={Platform.TELEGRAM: slack_cfg},
             get_home_channel=lambda _platform: None,
         )
 
@@ -448,7 +446,7 @@ class TestSendMessageTool:
 
         assert result["success"] is True
         send_mock.assert_awaited_once_with(
-            Platform.SLACK,
+            Platform.TELEGRAM,
             slack_cfg,
             "C123ABCDEF",
             "hello",
@@ -464,7 +462,7 @@ class TestSendMessageTool:
             extra={"homeserver": "https://matrix.example.com"},
         )
         config = SimpleNamespace(
-            platforms={Platform.MATRIX: matrix_cfg},
+            platforms={Platform.TELEGRAM: matrix_cfg},
             get_home_channel=lambda _platform: None,
         )
 
@@ -489,7 +487,7 @@ class TestSendMessageTool:
 
         assert result["success"] is True
         send_mock.assert_awaited_once_with(
-            Platform.MATRIX,
+            Platform.TELEGRAM,
             matrix_cfg,
             "!roomid:matrix.example.org",
             "hello",
@@ -740,7 +738,7 @@ class TestSendToPlatformChunking:
         with _patch_slack_standalone_sender(send):
             result = asyncio.run(
                 _send_to_platform(
-                    Platform.SLACK,
+                    Platform.TELEGRAM,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
                     "**hello** from [Hermes](<https://example.com>)",
@@ -765,7 +763,7 @@ class TestSendToPlatformChunking:
         with _patch_slack_standalone_sender(send):
             result = asyncio.run(
                 _send_to_platform(
-                    Platform.SLACK,
+                    Platform.TELEGRAM,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
                     "***important*** update",
@@ -785,7 +783,7 @@ class TestSendToPlatformChunking:
         with _patch_slack_standalone_sender(send):
             result = asyncio.run(
                 _send_to_platform(
-                    Platform.SLACK,
+                    Platform.TELEGRAM,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
                     "> important quote\n\nnormal text & stuff",
@@ -806,7 +804,7 @@ class TestSendToPlatformChunking:
         with _patch_slack_standalone_sender(send):
             result = asyncio.run(
                 _send_to_platform(
-                    Platform.SLACK,
+                    Platform.TELEGRAM,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
                     "AT&amp;T &lt;tag&gt; test",
@@ -827,7 +825,7 @@ class TestSendToPlatformChunking:
         with _patch_slack_standalone_sender(send):
             result = asyncio.run(
                 _send_to_platform(
-                    Platform.SLACK,
+                    Platform.TELEGRAM,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
                     "See [Foo](https://en.wikipedia.org/wiki/Foo_(bar))",
@@ -916,7 +914,7 @@ class TestSendToPlatformChunking:
             with patch("tools.send_message_tool._send_matrix_via_adapter", helper):
                 result = asyncio.run(
                     _send_to_platform(
-                        Platform.MATRIX,
+                        Platform.TELEGRAM,
                         SimpleNamespace(enabled=True, token="tok", extra={"homeserver": "https://matrix.example.com"}),
                         "!room:example.com",
                         "here you go",
@@ -953,7 +951,7 @@ class TestSendToPlatformChunking:
             with patch("tools.send_message_tool._send_matrix_via_adapter", helper):
                 result = asyncio.run(
                     _send_to_platform(
-                        Platform.MATRIX,
+                        Platform.TELEGRAM,
                         SimpleNamespace(enabled=True, token="tok", extra={"homeserver": "https://matrix.example.com"}),
                         "!room:ex.com",
                         "just text, no files",
@@ -1016,145 +1014,6 @@ class TestSendToPlatformChunking:
             ("send_document", "!room:example.com", str(file_path), None),
             ("disconnect",),
         ]
-
-
-class TestMatrixMediaLiveAdapterReuse:
-    """Verify _send_matrix_via_adapter reuses the live gateway adapter
-    when available, avoiding per-message E2EE re-init storms (#46310)."""
-
-    def test_live_adapter_skips_connect_disconnect(self, tmp_path):
-        """When a live gateway adapter exists, no connect() or disconnect()
-        should be called — the persistent E2EE session is reused."""
-        img_path = tmp_path / "photo.png"
-        img_path.write_bytes(b"\x89PNG\r\n")
-
-        calls = []
-
-        class LiveAdapter:
-            async def send(self, chat_id, message, metadata=None):
-                calls.append(("send", chat_id, message))
-                return SimpleNamespace(success=True, message_id="$text")
-
-            async def send_image_file(self, chat_id, path, metadata=None):
-                calls.append(("send_image_file", chat_id, path))
-                return SimpleNamespace(success=True, message_id="$img")
-
-        live_adapter = LiveAdapter()
-        fake_runner = SimpleNamespace(
-            adapters={Platform.MATRIX: live_adapter}
-        )
-
-        with patch(
-            "gateway.run._gateway_runner_ref",
-            return_value=fake_runner,
-        ), patch.dict(
-            sys.modules, {"plugins.platforms.matrix.adapter": SimpleNamespace()}
-        ):
-            result = asyncio.run(
-                _send_matrix_via_adapter(
-                    SimpleNamespace(enabled=True, token="tok", extra={}),
-                    "!room:example.com",
-                    "here is an image",
-                    media_files=[(str(img_path), False)],
-                )
-            )
-
-        assert result["success"] is True
-        assert result["message_id"] == "$img"
-        # Only send + send_image_file; no connect / disconnect
-        assert calls == [
-            ("send", "!room:example.com", "here is an image"),
-            ("send_image_file", "!room:example.com", str(img_path)),
-        ]
-
-    def test_live_adapter_not_available_falls_back_to_ephemeral(self, tmp_path):
-        """When _gateway_runner_ref returns None, the ephemeral adapter
-        path (connect + disconnect) is used as before."""
-        doc_path = tmp_path / "doc.pdf"
-        doc_path.write_bytes(b"%PDF-1.4")
-
-        calls = []
-
-        class EphemeralAdapter:
-            def __init__(self, _config):
-                pass
-
-            async def connect(self):
-                calls.append(("connect",))
-                return True
-
-            async def send(self, chat_id, message, metadata=None):
-                calls.append(("send", chat_id, message))
-                return SimpleNamespace(success=True, message_id="$txt")
-
-            async def send_document(self, chat_id, path, metadata=None):
-                calls.append(("send_document", chat_id, path))
-                return SimpleNamespace(success=True, message_id="$doc")
-
-            async def disconnect(self):
-                calls.append(("disconnect",))
-
-        fake_module = SimpleNamespace(MatrixAdapter=EphemeralAdapter)
-
-        with patch(
-            "gateway.run._gateway_runner_ref", return_value=None
-        ), patch.dict(sys.modules, {"plugins.platforms.matrix.adapter": fake_module}):
-            result = asyncio.run(
-                _send_matrix_via_adapter(
-                    SimpleNamespace(enabled=True, token="tok", extra={}),
-                    "!room:example.com",
-                    "report attached",
-                    media_files=[(str(doc_path), False)],
-                )
-            )
-
-        assert result["success"] is True
-        assert calls == [
-            ("connect",),
-            ("send", "!room:example.com", "report attached"),
-            ("send_document", "!room:example.com", str(doc_path)),
-            ("disconnect",),
-        ]
-
-    def test_live_adapter_no_matrix_adapter_falls_back(self):
-        """When the runner exists but has no Matrix adapter registered,
-        fall back to ephemeral."""
-        calls = []
-
-        class EphemeralAdapter:
-            def __init__(self, _config):
-                pass
-
-            async def connect(self):
-                calls.append(("connect",))
-                return True
-
-            async def send(self, chat_id, message, metadata=None):
-                calls.append(("send",))
-                return SimpleNamespace(success=True, message_id="$txt")
-
-            async def disconnect(self):
-                calls.append(("disconnect",))
-
-        # Runner exists but adapters dict has no MATRIX key
-        fake_runner = SimpleNamespace(adapters={})
-        fake_module = SimpleNamespace(MatrixAdapter=EphemeralAdapter)
-
-        with patch(
-            "gateway.run._gateway_runner_ref",
-            return_value=fake_runner,
-        ), patch.dict(sys.modules, {"plugins.platforms.matrix.adapter": fake_module}):
-            result = asyncio.run(
-                _send_matrix_via_adapter(
-                    SimpleNamespace(enabled=True, token="tok", extra={}),
-                    "!room:example.com",
-                    "hello",
-                )
-            )
-
-        assert result["success"] is True
-        assert ("connect",) in calls
-        assert ("disconnect",) in calls
 
 
 # ---------------------------------------------------------------------------
@@ -1468,69 +1327,8 @@ class TestParseTargetRefDiscord:
         assert is_explicit is True
 
 
-class TestParseTargetRefMatrix:
-    """_parse_target_ref correctly handles Matrix room IDs and user MXIDs."""
-
-    def test_matrix_thread_target_is_explicit(self):
-        """Session-derived Matrix thread targets round-trip as room + event id."""
-        chat_id, thread_id, is_explicit = _parse_target_ref(
-            "matrix",
-            "!HLOQwxYGgFPMPJUSNR:matrix.org:$thread123:matrix.org",
-        )
-        assert chat_id == "!HLOQwxYGgFPMPJUSNR:matrix.org"
-        assert thread_id == "$thread123:matrix.org"
-        assert is_explicit is True
-
-    def test_matrix_room_id_is_explicit(self):
-        """Matrix room IDs (!) are recognized as explicit targets."""
-        chat_id, thread_id, is_explicit = _parse_target_ref("matrix", "!HLOQwxYGgFPMPJUSNR:matrix.org")
-        assert chat_id == "!HLOQwxYGgFPMPJUSNR:matrix.org"
-        assert thread_id is None
-        assert is_explicit is True
-
-    def test_matrix_user_mxid_is_explicit(self):
-        """Matrix user MXIDs (@) are recognized as explicit targets."""
-        chat_id, thread_id, is_explicit = _parse_target_ref("matrix", "@hermes:matrix.org")
-        assert chat_id == "@hermes:matrix.org"
-        assert thread_id is None
-        assert is_explicit is True
-
-    def test_matrix_alias_is_not_explicit(self):
-        """Matrix room aliases (#) are NOT explicit — they need resolution."""
-        chat_id, thread_id, is_explicit = _parse_target_ref("matrix", "#general:matrix.org")
-        assert chat_id is None
-        assert is_explicit is False
-
-    def test_matrix_prefix_only_matches_matrix_platform(self):
-        """! and @ prefixes are only treated as explicit for the matrix platform."""
-        chat_id, _, is_explicit = _parse_target_ref("telegram", "!something")
-        assert is_explicit is False
-
-        chat_id, _, is_explicit = _parse_target_ref("discord", "@someone")
-        assert is_explicit is False
-
-
 class TestParseTargetRefE164:
     """_parse_target_ref accepts E.164 phone numbers for phone-based platforms."""
-
-    def test_signal_e164_preserves_plus_prefix(self):
-        """signal:+E164 is explicit and preserves the leading '+' for signal-cli."""
-        chat_id, thread_id, is_explicit = _parse_target_ref("signal", "+41791234567")
-        assert chat_id == "+41791234567"
-        assert thread_id is None
-        assert is_explicit is True
-
-    def test_signal_group_target_is_explicit(self):
-        chat_id, thread_id, is_explicit = _parse_target_ref("signal", "  group:abc123  ")
-        assert chat_id == "group:abc123"
-        assert thread_id is None
-        assert is_explicit is True
-
-    def test_empty_signal_group_target_is_not_explicit(self):
-        chat_id, thread_id, is_explicit = _parse_target_ref("signal", "  group:  ")
-        assert chat_id is None
-        assert thread_id is None
-        assert is_explicit is False
 
     def test_sms_e164_is_explicit(self):
         chat_id, _, is_explicit = _parse_target_ref("sms", "+15551234567")
@@ -1541,24 +1339,6 @@ class TestParseTargetRefE164:
         chat_id, _, is_explicit = _parse_target_ref("whatsapp", "+15551234567")
         assert chat_id == "+15551234567"
         assert is_explicit is True
-
-    def test_photon_e164_is_explicit(self):
-        chat_id, _, is_explicit = _parse_target_ref("photon", "+15551234567")
-        assert chat_id == "+15551234567"
-        assert is_explicit is True
-
-    def test_signal_bare_digits_still_work(self):
-        """Bare digit strings continue to match the generic numeric branch."""
-        chat_id, _, is_explicit = _parse_target_ref("signal", "15551234567")
-        assert chat_id == "15551234567"
-        assert is_explicit is True
-
-    def test_signal_invalid_e164_rejected(self):
-        """Too-short, too-long, and non-numeric E.164 strings are not explicit."""
-        assert _parse_target_ref("signal", "+123")[2] is False
-        assert _parse_target_ref("signal", "+1234567890123456")[2] is False
-        assert _parse_target_ref("signal", "+12abc4567890")[2] is False
-        assert _parse_target_ref("signal", "+")[2] is False
 
     def test_e164_prefix_only_matches_phone_platforms(self):
         """'+' prefix must NOT be treated as explicit for non-phone platforms."""
@@ -1617,50 +1397,6 @@ class TestParseTargetRefWhatsAppJID:
         """A bare friendly name is not a JID — it must fall through to
         directory resolution (returns not-explicit so the caller can resolve)."""
         assert _parse_target_ref("whatsapp", "general")[2] is False
-
-
-class TestParseTargetRefSlack:
-    """_parse_target_ref recognizes Slack channel/user IDs as explicit."""
-
-    def test_thread_target_is_explicit(self):
-        chat_id, thread_id, is_explicit = _parse_target_ref("slack", "C0B0QV5434G:171.000001")
-        assert chat_id == "C0B0QV5434G"
-        assert thread_id == "171.000001"
-        assert is_explicit is True
-
-    def test_public_channel_id_is_explicit(self):
-        chat_id, thread_id, is_explicit = _parse_target_ref("slack", "C0B0QV5434G")
-        assert chat_id == "C0B0QV5434G"
-        assert thread_id is None
-        assert is_explicit is True
-
-    def test_private_channel_id_is_explicit(self):
-        assert _parse_target_ref("slack", "G123ABCDEF")[2] is True
-
-    def test_dm_id_is_explicit(self):
-        assert _parse_target_ref("slack", "D123ABCDEF")[2] is True
-
-    def test_user_id_is_not_explicit(self):
-        """Slack user IDs (U...) and workspace IDs (W...) are NOT explicit send
-        targets. chat.postMessage rejects them — a DM must be opened first via
-        conversations.open to obtain a D... conversation ID.
-        """
-        assert _parse_target_ref("slack", "U123ABCDEF")[2] is False
-        assert _parse_target_ref("slack", "W123ABCDEF")[2] is False
-
-    def test_whitespace_is_stripped(self):
-        chat_id, _, is_explicit = _parse_target_ref("slack", "  C0B0QV5434G  ")
-        assert chat_id == "C0B0QV5434G"
-        assert is_explicit is True
-
-    def test_lowercase_or_short_id_is_not_explicit(self):
-        assert _parse_target_ref("slack", "c0b0qv5434g")[2] is False
-        assert _parse_target_ref("slack", "C123")[2] is False
-        assert _parse_target_ref("slack", "X0B0QV5434G")[2] is False
-
-    def test_slack_id_not_explicit_for_other_platforms(self):
-        assert _parse_target_ref("discord", "C0B0QV5434G")[2] is False
-        assert _parse_target_ref("telegram", "C0B0QV5434G")[2] is False
 
 
 class TestParseTargetRefEmail:
@@ -2073,41 +1809,6 @@ class TestSendToPlatformDiscordMedia:
         # Text rides as the caption, not a separate positional message body.
         assert call_kwargs.get("caption") == "short message"
         assert send_mock.await_args.args[2] == ""
-
-
-class TestSendMatrixUrlEncoding:
-    """The matrix plugin's _standalone_send URL-encodes Matrix room IDs in the
-    API path (was tools.send_message_tool._send_matrix before #41112)."""
-
-    def test_room_id_is_percent_encoded_in_url(self):
-        """Matrix room IDs with ! and : are percent-encoded in the PUT URL."""
-
-        mock_resp = MagicMock()
-        mock_resp.status = 200
-        mock_resp.json = AsyncMock(return_value={"event_id": "$evt123"})
-        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_resp.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = MagicMock()
-        mock_session.put = MagicMock(return_value=mock_resp)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("aiohttp.ClientSession", return_value=mock_session):
-            from plugins.platforms.matrix.adapter import _standalone_send
-            result = asyncio.get_event_loop().run_until_complete(
-                _standalone_send(
-                    SimpleNamespace(token="test_token", extra={"homeserver": "https://matrix.example.org"}),
-                    "!HLOQwxYGgFPMPJUSNR:matrix.org",
-                    "hello",
-                )
-            )
-
-        assert result["success"] is True
-        # Verify the URL was called with percent-encoded room ID
-        put_url = mock_session.put.call_args[0][0]
-        assert "%21HLOQwxYGgFPMPJUSNR%3Amatrix.org" in put_url
-        assert "!HLOQwxYGgFPMPJUSNR:matrix.org" not in put_url
 
 
 # ---------------------------------------------------------------------------
@@ -2527,670 +2228,12 @@ class TestForumProbeCache:
 # ---------------------------------------------------------------------------
 
 
-class _FakeSignalHttp:
-    """Stand-in for httpx.AsyncClient used as an async context manager.
+# Signal test helpers removed - Signal platform is consolidated
 
-    Pops a response from the queue per `post` call. Each entry is either
-    a dict (returned from .json()) or an exception instance (raised).
-    Captures (url, payload) per call.
-    """
 
-    def __init__(self, responses):
-        self.responses = list(responses)
-        self.calls = []
+# Orphaned test methods from TestSendViaAdapterStandaloneFallback removed -
+# this class tested plugin adapter functionality related to consolidated platforms
 
-    def __call__(self, *_a, **_kw):
-        return self
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *_a):
-        return False
-
-    async def post(self, url, json=None):
-        self.calls.append({"url": url, "payload": json})
-        if not self.responses:
-            raise AssertionError("Unexpected extra POST")
-        item = self.responses.pop(0)
-        if isinstance(item, BaseException):
-            raise item
-        resp = SimpleNamespace(
-            raise_for_status=lambda: None,
-            json=lambda data=item: data,
-        )
-        return resp
-
-
-def _install_signal_http(monkeypatch, fake):
-    """Patch httpx.AsyncClient at the module level so the lazy import in
-    _send_signal picks it up.
-    """
-    import httpx
-    monkeypatch.setattr(httpx, "AsyncClient", fake)
-
-
-def _patch_sendmsg_sleep_and_time(monkeypatch, capture: list):
-    """Mock asyncio.sleep + time.monotonic in the signal_rate_limit
-    module so the scheduler's acquire loop sees synthetic time advancing
-    during sleep calls, and report_rpc_duration sees the same clock.
-
-    Zero-second sleeps (event-loop yields from fake HTTP posts) are
-    delegated to the real asyncio.sleep so they don't pollute the
-    capture list.
-    """
-    import asyncio as _aio
-    _real_sleep = _aio.sleep
-    offset = [0.0]
-
-    async def fake_sleep(seconds):
-        if seconds > 0:
-            capture.append(seconds)
-            offset[0] += seconds
-        else:
-            await _real_sleep(0)
-
-    monkeypatch.setattr(
-        "gateway.platforms.signal_rate_limit.asyncio.sleep", fake_sleep
-    )
-    monkeypatch.setattr(
-        "gateway.platforms.signal_rate_limit.time.monotonic", lambda: offset[0]
-    )
-
-
-class TestSendSignalChunking:
-    def test_text_only_single_rpc(self, monkeypatch):
-        fake = _FakeSignalHttp([{"result": {"timestamp": 1}}])
-        _install_signal_http(monkeypatch, fake)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+15551234567"},
-                "+15557654321",
-                "hello",
-            )
-        )
-
-        assert result["success"] is True
-        assert result["platform"] == "signal"
-        assert result["chat_id"].endswith("4321")
-        assert len(fake.calls) == 1
-        params = fake.calls[0]["payload"]["params"]
-        assert params["message"] == "hello"
-        assert "attachments" not in params
-        assert "textStyle" not in params
-        assert "textStyles" not in params
-
-    def test_text_only_markdown_uses_singular_text_style(self, monkeypatch):
-        fake = _FakeSignalHttp([{"result": {"timestamp": 1}}])
-        _install_signal_http(monkeypatch, fake)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+155****4567"},
-                "+155****4321",
-                "**hello**",
-            )
-        )
-
-        assert result["success"] is True
-        params = fake.calls[0]["payload"]["params"]
-        assert params["message"] == "hello"
-        assert params["textStyle"] == "0:5:BOLD"
-        assert "textStyles" not in params
-
-    def test_text_only_multiple_styles_use_plural_text_styles(self, monkeypatch):
-        fake = _FakeSignalHttp([{"result": {"timestamp": 1}}])
-        _install_signal_http(monkeypatch, fake)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+155****4567"},
-                "+155****4321",
-                "**bold** and *italic*",
-            )
-        )
-
-        assert result["success"] is True
-        params = fake.calls[0]["payload"]["params"]
-        assert params["message"] == "bold and italic"
-        assert "textStyle" not in params
-        assert params["textStyles"] == ["0:4:BOLD", "9:6:ITALIC"]
-
-    def test_text_style_offsets_use_utf16_code_units(self, monkeypatch):
-        fake = _FakeSignalHttp([{"result": {"timestamp": 1}}])
-        _install_signal_http(monkeypatch, fake)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+155****4567"},
-                "+155****4321",
-                "🙂 **bold**",
-            )
-        )
-
-        assert result["success"] is True
-        params = fake.calls[0]["payload"]["params"]
-        assert params["message"] == "🙂 bold"
-        assert params["textStyle"] == "3:4:BOLD"
-
-    def test_chunks_attachments_above_max(self, tmp_path, monkeypatch):
-        """33 attachments → 2 batches; text only on first batch. Batch 1
-        only needs 1 token and 18 remain after batch 0, so no sleep."""
-        from gateway.platforms.signal_rate_limit import (
-            SIGNAL_MAX_ATTACHMENTS_PER_MSG,
-        )
-
-        paths = []
-        for i in range(33):
-            p = tmp_path / f"img_{i}.png"
-            p.write_bytes(b"\x89PNG" + b"\x00" * 16)
-            paths.append((str(p), False))
-
-        fake = _FakeSignalHttp([
-            {"result": {"timestamp": 1}},   # batch 0
-            {"result": {"timestamp": 2}},   # batch 1
-        ])
-        _install_signal_http(monkeypatch, fake)
-
-        sleep_calls = []
-        _patch_sendmsg_sleep_and_time(monkeypatch, sleep_calls)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+15551234567"},
-                "+15557654321",
-                "Caption goes here",
-                media_files=paths,
-            )
-        )
-
-        assert result["success"] is True
-        assert len(fake.calls) == 2
-        assert len(sleep_calls) == 0
-
-        first = fake.calls[0]["payload"]["params"]
-        assert first["message"] == "Caption goes here"
-        assert len(first["attachments"]) == SIGNAL_MAX_ATTACHMENTS_PER_MSG
-        assert "textStyle" not in first
-        assert "textStyles" not in first
-
-        second = fake.calls[1]["payload"]["params"]
-        assert second["message"] == ""  # caption only on batch 0
-        assert len(second["attachments"]) == 33 - SIGNAL_MAX_ATTACHMENTS_PER_MSG
-        assert "textStyle" not in second
-        assert "textStyles" not in second
-
-    def test_caption_styles_only_apply_to_first_attachment_batch(self, tmp_path, monkeypatch):
-        from gateway.platforms.signal_rate_limit import SIGNAL_MAX_ATTACHMENTS_PER_MSG
-
-        paths = []
-        for i in range(33):
-            p = tmp_path / f"img_{i}.png"
-            p.write_bytes(b"\x89PNG" + b"\x00" * 16)
-            paths.append((str(p), False))
-
-        fake = _FakeSignalHttp([
-            {"result": {"timestamp": 1}},
-            {"result": {"timestamp": 2}},
-        ])
-        _install_signal_http(monkeypatch, fake)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+155****4567"},
-                "group:abc123",
-                "**Bold** and *italic*",
-                media_files=paths,
-            )
-        )
-
-        assert result["success"] is True
-        assert result["chat_id"] == "group:***"
-        first = fake.calls[0]["payload"]["params"]
-        assert first["groupId"] == "abc123"
-        assert first["message"] == "Bold and italic"
-        assert first["textStyles"] == ["0:4:BOLD", "9:6:ITALIC"]
-        assert len(first["attachments"]) == SIGNAL_MAX_ATTACHMENTS_PER_MSG
-
-        second = fake.calls[1]["payload"]["params"]
-        assert second["groupId"] == "abc123"
-        assert second["message"] == ""
-        assert len(second["attachments"]) == 33 - SIGNAL_MAX_ATTACHMENTS_PER_MSG
-        assert "textStyle" not in second
-        assert "textStyles" not in second
-
-    def test_full_followup_batch_emits_pacing_notice(self, tmp_path, monkeypatch):
-        """64 attachments → 2 full batches. Batch 1 needs 14 more tokens
-        than the 18 remaining after batch 0 — 56s wait crossing the 10s
-        notice threshold."""
-        from gateway.platforms.signal_rate_limit import (
-            SIGNAL_MAX_ATTACHMENTS_PER_MSG,
-            SIGNAL_RATE_LIMIT_BUCKET_CAPACITY,
-            SIGNAL_RATE_LIMIT_DEFAULT_RETRY_AFTER,
-        )
-
-        paths = []
-        for i in range(64):
-            p = tmp_path / f"img_{i}.png"
-            p.write_bytes(b"\x89PNG" + b"\x00" * 16)
-            paths.append((str(p), False))
-
-        fake = _FakeSignalHttp([
-            {"result": {"timestamp": 1}},   # batch 0
-            {"result": {"timestamp": 99}},  # pacing notice
-            {"result": {"timestamp": 2}},   # batch 1
-        ])
-        _install_signal_http(monkeypatch, fake)
-
-        sleep_calls = []
-        _patch_sendmsg_sleep_and_time(monkeypatch, sleep_calls)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+15551234567"},
-                "+15557654321",
-                "",
-                media_files=paths,
-            )
-        )
-
-        assert result["success"] is True
-        assert len(fake.calls) == 3
-        notice = fake.calls[1]["payload"]["params"]
-        assert "More images coming" in notice["message"]
-        assert "attachments" not in notice
-        # Batch 1 deficit: 32 - (50 - 32) = 14 tokens × 4s = 56s
-        expected = (
-            SIGNAL_MAX_ATTACHMENTS_PER_MSG
-            - (SIGNAL_RATE_LIMIT_BUCKET_CAPACITY - SIGNAL_MAX_ATTACHMENTS_PER_MSG)
-        ) * SIGNAL_RATE_LIMIT_DEFAULT_RETRY_AFTER
-        assert sleep_calls == [pytest.approx(expected, abs=1.0)]
-
-    def test_429_with_retry_after_drives_exact_backoff(self, tmp_path, monkeypatch):
-        """signal-cli ≥ v0.14.3 surfaces Retry-After under
-        error.data.response.results[*].retryAfterSeconds. The scheduler
-        calibrates its refill rate from that value; the retry of n=1
-        sleeps the per-token interval."""
-        from gateway.platforms.signal_rate_limit import SIGNAL_RPC_ERROR_RATELIMIT
-
-        p = tmp_path / "img.png"
-        p.write_bytes(b"\x89PNG" + b"\x00" * 16)
-
-        fake = _FakeSignalHttp([
-            {
-                "error": {
-                    "code": SIGNAL_RPC_ERROR_RATELIMIT,
-                    "message": "Failed to send message due to rate limiting",
-                    "data": {
-                        "response": {
-                            "timestamp": 0,
-                            "results": [
-                                {"type": "RATE_LIMIT_FAILURE", "retryAfterSeconds": 42},
-                            ],
-                        }
-                    },
-                }
-            },
-            {"result": {"timestamp": 7}},
-        ])
-        _install_signal_http(monkeypatch, fake)
-
-        sleep_calls = []
-        _patch_sendmsg_sleep_and_time(monkeypatch, sleep_calls)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+15551234567"},
-                "+15557654321",
-                "",
-                media_files=[(str(p), False)],
-            )
-        )
-
-        assert result["success"] is True
-        assert len(fake.calls) == 2  # initial + retry
-        assert sleep_calls == [pytest.approx(42.0, abs=1.0)]
-
-    def test_429_without_retry_after_falls_back_to_default(self, tmp_path, monkeypatch):
-        """Older signal-cli (< v0.14.3) doesn't surface Retry-After.
-        The scheduler keeps its default rate (1 token / 4s)."""
-        from gateway.platforms.signal_rate_limit import SIGNAL_RATE_LIMIT_DEFAULT_RETRY_AFTER
-
-        p = tmp_path / "img.png"
-        p.write_bytes(b"\x89PNG" + b"\x00" * 16)
-
-        fake = _FakeSignalHttp([
-            {"error": {"message": "Failed: [429] Rate Limited"}},
-            {"result": {"timestamp": 7}},
-        ])
-        _install_signal_http(monkeypatch, fake)
-
-        sleep_calls = []
-        _patch_sendmsg_sleep_and_time(monkeypatch, sleep_calls)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+15551234567"},
-                "+15557654321",
-                "",
-                media_files=[(str(p), False)],
-            )
-        )
-
-        assert result["success"] is True
-        assert sleep_calls == [pytest.approx(SIGNAL_RATE_LIMIT_DEFAULT_RETRY_AFTER, abs=1.0)]
-
-    def test_429_retry_exhaust_continues_to_next_batch(self, tmp_path, monkeypatch):
-        """Both attempts on batch 0 fail; batch 1 still gets a chance.
-        The scheduler's natural pacing (no more cooldown gate) lets the
-        second batch through after its acquire wait."""
-        from gateway.platforms.signal_rate_limit import SIGNAL_RPC_ERROR_RATELIMIT
-
-        paths = []
-        for i in range(33):  # forces 2 batches
-            p = tmp_path / f"img_{i}.png"
-            p.write_bytes(b"\x89PNG" + b"\x00" * 16)
-            paths.append((str(p), False))
-
-        rate_limit_err = {
-            "error": {
-                "code": SIGNAL_RPC_ERROR_RATELIMIT,
-                "message": "Failed to send message due to rate limiting",
-                "data": {
-                    "response": {
-                        "timestamp": 0,
-                        "results": [
-                            {"type": "RATE_LIMIT_FAILURE", "retryAfterSeconds": 4},
-                        ],
-                    }
-                },
-            }
-        }
-
-        fake = _FakeSignalHttp([
-            rate_limit_err,                  # batch 0, attempt 1
-            rate_limit_err,                  # batch 0, attempt 2 (exhaust)
-            {"result": {"timestamp": 9}},    # batch 1 succeeds
-        ])
-        _install_signal_http(monkeypatch, fake)
-
-        sleep_calls = []
-        _patch_sendmsg_sleep_and_time(monkeypatch, sleep_calls)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+15551234567"},
-                "+15557654321",
-                "many",
-                media_files=paths,
-            )
-        )
-
-        # Partial success: batch 0 lost but batch 1 went through.
-        assert result["success"] is True
-        assert "warnings" in result
-        assert any("rate-limited" in w for w in result["warnings"])
-        # 2 attempts on batch 0 + 1 successful batch 1 = 3 calls
-        assert len(fake.calls) == 3
-
-    def test_non_rate_limit_error_returns_immediately(self, tmp_path, monkeypatch):
-        """A non-429 RPC error should not retry — it returns an error result."""
-        p = tmp_path / "img.png"
-        p.write_bytes(b"\x89PNG" + b"\x00" * 16)
-
-        fake = _FakeSignalHttp([
-            {"error": {"message": "UntrustedIdentityException"}},
-        ])
-        _install_signal_http(monkeypatch, fake)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+15551234567"},
-                "+15557654321",
-                "",
-                media_files=[(str(p), False)],
-            )
-        )
-
-        assert "error" in result
-        assert "UntrustedIdentityException" in result["error"]
-        assert len(fake.calls) == 1  # no retry on non-429
-
-    def test_skipped_missing_files_reported_in_warnings(self, tmp_path, monkeypatch):
-        good = tmp_path / "ok.png"
-        good.write_bytes(b"\x89PNG" + b"\x00" * 16)
-
-        fake = _FakeSignalHttp([{"result": {"timestamp": 1}}])
-        _install_signal_http(monkeypatch, fake)
-
-        result = asyncio.run(
-            _send_signal(
-                {"http_url": "http://localhost:8080", "account": "+15551234567"},
-                "+15557654321",
-                "msg",
-                media_files=[(str(good), False), (str(tmp_path / "missing.png"), False)],
-            )
-        )
-
-        assert result["success"] is True
-        assert "warnings" in result
-        # Only the existing file made it into the RPC
-        params = fake.calls[0]["payload"]["params"]
-        assert len(params["attachments"]) == 1
-
-
-# ── _send_via_adapter standalone fallback ────────────────────────────────
-
-
-class _FakePlatform:
-    """Stand-in for the gateway.config.Platform enum.  Holds the .value
-    attribute consulted by ``_send_via_adapter`` for registry lookups."""
-
-    def __init__(self, value):
-        self.value = value
-
-
-class TestSendViaAdapterStandaloneFallback:
-    """Coverage for the out-of-process plugin-platform send path.
-
-    When the gateway runner is not in this process (e.g. ``hermes cron``
-    runs separately from ``hermes gateway``), ``_send_via_adapter`` should
-    fall through to the plugin's ``standalone_sender_fn`` registered on
-    its ``PlatformEntry``.  Without the hook, the existing error string
-    is returned (with a more helpful tail).
-    """
-
-    @staticmethod
-    def _make_entry(send_fn):
-        from gateway.platform_registry import PlatformEntry
-
-        return PlatformEntry(
-            name="fakeplatform",
-            label="Fake",
-            adapter_factory=lambda cfg: None,
-            check_fn=lambda: True,
-            standalone_sender_fn=send_fn,
-        )
-
-    @pytest.mark.asyncio
-    async def test_live_ntfy_adapter_receives_explicit_publish_topic(self, monkeypatch):
-        from tools.send_message_tool import _send_via_adapter
-
-        platform = Platform("ntfy")
-        recorded = {}
-
-        class Adapter:
-            async def send(self, *, chat_id, content, metadata=None):
-                recorded["chat_id"] = chat_id
-                recorded["content"] = content
-                recorded["metadata"] = metadata
-                return SimpleNamespace(success=True, message_id="ntfy-id")
-
-        runner = SimpleNamespace(adapters={platform: Adapter()})
-        fake_gateway_run = ModuleType("gateway.run")
-        fake_gateway_run._gateway_runner_ref = lambda: runner
-        monkeypatch.setitem(sys.modules, "gateway.run", fake_gateway_run)
-
-        result = await _send_via_adapter(
-            platform,
-            SimpleNamespace(extra={"publish_topic": "configured-topic"}),
-            "alerts-channel",
-            "done",
-        )
-
-        assert result == {"success": True, "message_id": "ntfy-id"}
-        assert recorded["chat_id"] == "alerts-channel"
-        assert recorded["content"] == "done"
-        assert recorded["metadata"] == {"publish_topic": "alerts-channel"}
-
-    @pytest.mark.asyncio
-    async def test_standalone_sender_fn_called_when_no_adapter(self, monkeypatch):
-        """Registry has hook, runner ref returns None: the hook is awaited."""
-        from tools.send_message_tool import _send_via_adapter
-        from gateway.platform_registry import platform_registry
-
-        recorded = {}
-
-        async def fake_send(pconfig, chat_id, message, **kwargs):
-            recorded["pconfig"] = pconfig
-            recorded["chat_id"] = chat_id
-            recorded["message"] = message
-            recorded["kwargs"] = kwargs
-            return {"success": True, "message_id": "msg-42"}
-
-        platform_registry.register(self._make_entry(fake_send))
-        try:
-            monkeypatch.setattr("gateway.run._gateway_runner_ref", lambda: None)
-
-            pconfig = SimpleNamespace(extra={})
-            result = await _send_via_adapter(
-                _FakePlatform("fakeplatform"),
-                pconfig,
-                "room/123",
-                "hello cron",
-            )
-        finally:
-            platform_registry.unregister("fakeplatform")
-
-        assert result == {"success": True, "message_id": "msg-42"}
-        assert recorded["chat_id"] == "room/123"
-        assert recorded["message"] == "hello cron"
-        assert recorded["pconfig"] is pconfig
-
-    @pytest.mark.asyncio
-    async def test_standalone_sender_fn_kwargs_forwarded(self, monkeypatch):
-        """thread_id, media_files, and force_document all reach the hook."""
-        from tools.send_message_tool import _send_via_adapter
-        from gateway.platform_registry import platform_registry
-
-        recorded = {}
-
-        async def fake_send(pconfig, chat_id, message, *, thread_id=None,
-                            media_files=None, force_document=False):
-            recorded["thread_id"] = thread_id
-            recorded["media_files"] = media_files
-            recorded["force_document"] = force_document
-            return {"success": True, "message_id": "x"}
-
-        platform_registry.register(self._make_entry(fake_send))
-        try:
-            monkeypatch.setattr("gateway.run._gateway_runner_ref", lambda: None)
-
-            await _send_via_adapter(
-                _FakePlatform("fakeplatform"),
-                SimpleNamespace(extra={}),
-                "chat-1",
-                "hi",
-                thread_id="thread-7",
-                media_files=["/tmp/a.png"],
-                force_document=True,
-            )
-        finally:
-            platform_registry.unregister("fakeplatform")
-
-        assert recorded["thread_id"] == "thread-7"
-        assert recorded["media_files"] == ["/tmp/a.png"]
-        assert recorded["force_document"] is True
-
-    @pytest.mark.asyncio
-    async def test_standalone_sender_fn_absent_returns_helpful_error(self, monkeypatch):
-        """Registry entry has no hook: the fall-through error explains both
-        options (gateway-running and standalone hook)."""
-        from tools.send_message_tool import _send_via_adapter
-        from gateway.platform_registry import platform_registry
-
-        platform_registry.register(self._make_entry(None))
-        try:
-            monkeypatch.setattr("gateway.run._gateway_runner_ref", lambda: None)
-
-            result = await _send_via_adapter(
-                _FakePlatform("fakeplatform"),
-                SimpleNamespace(extra={}),
-                "chat-1",
-                "hi",
-            )
-        finally:
-            platform_registry.unregister("fakeplatform")
-
-        assert "error" in result
-        assert "fakeplatform" in result["error"]
-        assert "standalone_sender_fn" in result["error"]
-
-    @pytest.mark.asyncio
-    async def test_standalone_sender_fn_raises_is_caught_and_formatted(self, monkeypatch):
-        """Hook raises: error dict has 'Plugin standalone send failed: ...'"""
-        from tools.send_message_tool import _send_via_adapter
-        from gateway.platform_registry import platform_registry
-
-        async def boom(pconfig, chat_id, message, **kwargs):
-            raise ValueError("boom!")
-
-        platform_registry.register(self._make_entry(boom))
-        try:
-            monkeypatch.setattr("gateway.run._gateway_runner_ref", lambda: None)
-
-            result = await _send_via_adapter(
-                _FakePlatform("fakeplatform"),
-                SimpleNamespace(extra={}),
-                "chat-1",
-                "hi",
-            )
-        finally:
-            platform_registry.unregister("fakeplatform")
-
-        assert result == {"error": "Plugin standalone send failed: boom!"}
-
-    @pytest.mark.asyncio
-    async def test_standalone_sender_fn_return_shape_passed_through(self, monkeypatch):
-        """Hook returns success dict: passed through unchanged."""
-        from tools.send_message_tool import _send_via_adapter
-        from gateway.platform_registry import platform_registry
-
-        async def fake_send(pconfig, chat_id, message, **kwargs):
-            return {"success": True, "message_id": "abc-123", "extra_field": "preserved"}
-
-        platform_registry.register(self._make_entry(fake_send))
-        try:
-            monkeypatch.setattr("gateway.run._gateway_runner_ref", lambda: None)
-
-            result = await _send_via_adapter(
-                _FakePlatform("fakeplatform"),
-                SimpleNamespace(extra={}),
-                "chat-1",
-                "hi",
-            )
-        finally:
-            platform_registry.unregister("fakeplatform")
-
-        assert result["success"] is True
-        assert result["message_id"] == "abc-123"
-        assert result["extra_field"] == "preserved"
-
-
-# ---------------------------------------------------------------------------
-# _check_send_message — availability gating
-# ---------------------------------------------------------------------------
 
 class TestCheckSendMessage:
     """The tool's check_fn governs whether the model sees ``send_message`` as

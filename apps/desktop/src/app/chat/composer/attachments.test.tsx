@@ -11,11 +11,7 @@ function makeAttachment(id: string, label = 'test.pdf'): ComposerAttachment {
 }
 
 function renderWithI18n(ui: React.ReactNode) {
-  return render(
-    <I18nProvider configClient={{ getConfig: async () => ({}), saveConfig: async () => ({ ok: true }) }}>
-      {ui}
-    </I18nProvider>
-  )
+  return render(<I18nProvider>{ui}</I18nProvider>)
 }
 
 describe('AttachmentList', () => {

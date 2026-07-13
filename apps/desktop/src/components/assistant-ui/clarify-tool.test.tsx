@@ -12,11 +12,7 @@ afterEach(() => {
 })
 
 function renderClarify(ui: ReactNode) {
-  return render(
-    <I18nProvider configClient={null} initialLocale="en">
-      {ui}
-    </I18nProvider>
-  )
+  return render(<I18nProvider>{ui}</I18nProvider>)
 }
 
 function settledClarifyProps(

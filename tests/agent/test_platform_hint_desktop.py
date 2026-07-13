@@ -46,6 +46,10 @@ def _make_agent(platform="", **overrides):
         _memory_store=None,
         _memory_manager=None,
         _platform_hint_overrides={},
+        # These tests exercise platform-hint resolution, which is gated OFF by
+        # default under the lean system-prompt config — enable just that block.
+        _lean_system_prompt=True,
+        _prompt_sections={"platform_hint": True},
         model="",
         provider="",
         pass_session_id=False,

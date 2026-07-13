@@ -413,7 +413,7 @@ class TestReasoningCommand:
         runner = _make_runner()
 
         source = SessionSource(
-            platform=Platform.HOMEASSISTANT,
+            platform=Platform.TELEGRAM,
             chat_id="ha",
             chat_name="Home Assistant",
             chat_type="dm",

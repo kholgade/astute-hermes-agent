@@ -41,9 +41,9 @@ def _make_multiplex_runner(monkeypatch):
         _group_policy="open",
     )
 
-    runner.adapters = {Platform.WECOM: default_adapter}
+    runner.adapters = {Platform.TELEGRAM: default_adapter}
     runner._profile_adapters = {
-        "coder": {Platform.WECOM: secondary_adapter},
+        "coder": {Platform.TELEGRAM: secondary_adapter},
     }
     runner.pairing_store = MagicMock()
     runner.pairing_store.is_approved.return_value = False
@@ -55,7 +55,7 @@ def test_secondary_open_policy_not_authorized_by_default_allowlist(monkeypatch):
     runner, _default_adapter, _secondary_adapter = _make_multiplex_runner(monkeypatch)
 
     source = SessionSource(
-        platform=Platform.WECOM,
+        platform=Platform.TELEGRAM,
         user_id="attacker",
         chat_id="dm-chat",
         user_name="attacker",
@@ -63,8 +63,8 @@ def test_secondary_open_policy_not_authorized_by_default_allowlist(monkeypatch):
         profile="coder",
     )
 
-    assert runner._adapter_dm_policy(Platform.WECOM, profile="coder") == "open"
-    assert runner._adapter_dm_policy(Platform.WECOM) == "allowlist"
+    assert runner._adapter_dm_policy(Platform.TELEGRAM, profile="coder") == "open"
+    assert runner._adapter_dm_policy(Platform.TELEGRAM) == "allowlist"
     assert runner._is_user_authorized(source) is False
 
 
@@ -73,7 +73,7 @@ def test_default_profile_still_trusts_own_allowlist(monkeypatch):
     runner, _default_adapter, _secondary_adapter = _make_multiplex_runner(monkeypatch)
 
     source = SessionSource(
-        platform=Platform.WECOM,
+        platform=Platform.TELEGRAM,
         user_id="allowed-user",
         chat_id="dm-chat",
         user_name="allowed-user",
@@ -90,7 +90,7 @@ def test_secondary_allowlist_still_authorized(monkeypatch):
     secondary_adapter._dm_policy = "allowlist"
 
     source = SessionSource(
-        platform=Platform.WECOM,
+        platform=Platform.TELEGRAM,
         user_id="allowed-user",
         chat_id="dm-chat",
         user_name="allowed-user",
@@ -106,7 +106,7 @@ def test_adapter_for_source_resolves_secondary_profile_adapter(monkeypatch):
     runner, default_adapter, secondary_adapter = _make_multiplex_runner(monkeypatch)
 
     source = SessionSource(
-        platform=Platform.WECOM,
+        platform=Platform.TELEGRAM,
         user_id="attacker",
         chat_id="dm-chat",
         user_name="attacker",
@@ -117,7 +117,7 @@ def test_adapter_for_source_resolves_secondary_profile_adapter(monkeypatch):
     assert runner._adapter_for_source(source) is secondary_adapter
     assert runner._adapter_for_source(
         SessionSource(
-            platform=Platform.WECOM,
+            platform=Platform.TELEGRAM,
             user_id="allowed-user",
             chat_id="dm-chat",
             user_name="allowed-user",
@@ -133,10 +133,10 @@ def test_secondary_allowlist_dm_behavior_ignores_unauthorized(monkeypatch):
     secondary_adapter._dm_policy = "allowlist"
 
     assert runner._get_unauthorized_dm_behavior(
-        Platform.WECOM,
+        Platform.TELEGRAM,
         profile="coder",
     ) == "ignore"
-    assert runner._get_unauthorized_dm_behavior(Platform.WECOM) == "ignore"
+    assert runner._get_unauthorized_dm_behavior(Platform.TELEGRAM) == "ignore"
 
 
 def test_secondary_open_policy_fails_startup_guard(monkeypatch):
@@ -147,7 +147,7 @@ def test_secondary_open_policy_fails_startup_guard(monkeypatch):
 
     secondary_cfg = GatewayConfig(multiplex_profiles=True)
     secondary_cfg.platforms = {
-        Platform.WECOM: PlatformConfig(
+        Platform.TELEGRAM: PlatformConfig(
             enabled=True,
             extra={"dm_policy": "open"},
         ),

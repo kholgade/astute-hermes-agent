@@ -1,8 +1,7 @@
 import { TRANSLATIONS } from './catalog'
-import { DEFAULT_LOCALE } from './languages'
 import type { Locale, Translations } from './types'
 
-let runtimeLocale: Locale = DEFAULT_LOCALE
+let runtimeLocale: Locale = 'en'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -37,17 +36,5 @@ export function setRuntimeI18nLocale(locale: Locale) {
 export function translateNow(key: string, ...args: unknown[]): string {
   const active = renderTranslation(resolvePath(TRANSLATIONS[runtimeLocale], key), args)
 
-  if (active !== null) {
-    return active
-  }
-
-  if (runtimeLocale !== DEFAULT_LOCALE) {
-    const fallback = renderTranslation(resolvePath(TRANSLATIONS[DEFAULT_LOCALE], key), args)
-
-    if (fallback !== null) {
-      return fallback
-    }
-  }
-
-  return key
+  return active ?? key
 }

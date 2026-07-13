@@ -1631,8 +1631,8 @@ class TestParallelToolCallGuidance:
         assert len(PARALLEL_TOOL_CALL_GUIDANCE) < 900
 
     def test_has_a_heading(self):
-        # Heading delimits it as its own section in the assembled prompt.
-        assert PARALLEL_TOOL_CALL_GUIDANCE.lstrip().startswith("#")
+        # XML tag delimits it as its own section in the assembled prompt.
+        assert PARALLEL_TOOL_CALL_GUIDANCE.lstrip().startswith("<parallel_tool_calls>")
 
     def test_not_duplicated_in_google_guidance(self):
         # The universal block is now the single source of parallel-batching

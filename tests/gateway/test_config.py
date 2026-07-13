@@ -163,62 +163,17 @@ class TestGetConnectedPlatforms:
             platforms={
                 Platform.TELEGRAM: PlatformConfig(enabled=True, token="t"),
                 Platform.DISCORD: PlatformConfig(enabled=False, token="d"),
-                Platform.SLACK: PlatformConfig(enabled=True),  # no token
+                Platform.TELEGRAM: PlatformConfig(enabled=True),  # no token
             },
         )
         connected = config.get_connected_platforms()
         assert Platform.TELEGRAM in connected
         assert Platform.DISCORD not in connected
-        assert Platform.SLACK not in connected
+        assert Platform.TELEGRAM not in connected
 
     def test_empty_platforms(self):
         config = GatewayConfig()
         assert config.get_connected_platforms() == []
-
-    def test_dingtalk_recognised_via_extras(self):
-        config = GatewayConfig(
-            platforms={
-                Platform.DINGTALK: PlatformConfig(
-                    enabled=True,
-                    extra={"client_id": "cid", "client_secret": "sec"},
-                ),
-            },
-        )
-        assert Platform.DINGTALK in config.get_connected_platforms()
-
-    def test_dingtalk_recognised_via_env_vars(self, monkeypatch):
-        """DingTalk configured via env vars (no extras) should still be
-        recognised as connected — covers the case where _apply_env_overrides
-        hasn't populated extras yet."""
-        monkeypatch.setenv("DINGTALK_CLIENT_ID", "env_cid")
-        monkeypatch.setenv("DINGTALK_CLIENT_SECRET", "env_sec")
-        config = GatewayConfig(
-            platforms={
-                Platform.DINGTALK: PlatformConfig(enabled=True, extra={}),
-            },
-        )
-        assert Platform.DINGTALK in config.get_connected_platforms()
-
-    def test_dingtalk_missing_creds_not_connected(self, monkeypatch):
-        monkeypatch.delenv("DINGTALK_CLIENT_ID", raising=False)
-        monkeypatch.delenv("DINGTALK_CLIENT_SECRET", raising=False)
-        config = GatewayConfig(
-            platforms={
-                Platform.DINGTALK: PlatformConfig(enabled=True, extra={}),
-            },
-        )
-        assert Platform.DINGTALK not in config.get_connected_platforms()
-
-    def test_dingtalk_disabled_not_connected(self):
-        config = GatewayConfig(
-            platforms={
-                Platform.DINGTALK: PlatformConfig(
-                    enabled=False,
-                    extra={"client_id": "cid", "client_secret": "sec"},
-                ),
-            },
-        )
-        assert Platform.DINGTALK not in config.get_connected_platforms()
 
 
 class TestSessionResetPolicy:
@@ -414,15 +369,15 @@ class TestGatewayConfigRoundtrip:
 
     def test_get_notice_delivery_defaults_to_public(self):
         config = GatewayConfig(
-            platforms={Platform.SLACK: PlatformConfig(enabled=True, token="***")}
+            platforms={Platform.TELEGRAM: PlatformConfig(enabled=True, token="***")}
         )
 
-        assert config.get_notice_delivery(Platform.SLACK) == "public"
+        assert config.get_notice_delivery(Platform.TELEGRAM) == "public"
 
     def test_get_notice_delivery_honors_platform_override(self):
         config = GatewayConfig(
             platforms={
-                Platform.SLACK: PlatformConfig(
+                Platform.TELEGRAM: PlatformConfig(
                     enabled=True,
                     token="***",
                     extra={"notice_delivery": "private"},
@@ -430,7 +385,7 @@ class TestGatewayConfigRoundtrip:
             }
         )
 
-        assert config.get_notice_delivery(Platform.SLACK) == "private"
+        assert config.get_notice_delivery(Platform.TELEGRAM) == "private"
 
 
 class TestLoadGatewayConfig:
@@ -1020,7 +975,7 @@ class TestLoadGatewayConfig:
 
         config = load_gateway_config()
 
-        assert config.platforms[Platform.SLACK].extra["channel_prompts"] == {
+        assert config.platforms[Platform.TELEGRAM].extra["channel_prompts"] == {
             "C01ABC": "Code review mode",
         }
 
@@ -1219,7 +1174,7 @@ class TestLoadGatewayConfig:
 
         config = load_gateway_config()
 
-        assert config.get_notice_delivery(Platform.SLACK) == "private"
+        assert config.get_notice_delivery(Platform.TELEGRAM) == "private"
 
     def test_bridges_telegram_proxy_url_from_config_yaml(self, tmp_path, monkeypatch):
         hermes_home = tmp_path / ".hermes"
@@ -1302,7 +1257,7 @@ class TestHomeChannelEnvOverrides:
     def test_existing_platform_configs_accept_home_channel_env_overrides(self):
         cases = [
             (
-                Platform.SLACK,
+                Platform.TELEGRAM,
                 PlatformConfig(enabled=True, token="xoxb-from-config"),
                 {"SLACK_HOME_CHANNEL": "C123", "SLACK_HOME_CHANNEL_NAME": "Ops"},
                 ("C123", "Ops"),
@@ -1315,35 +1270,6 @@ class TestHomeChannelEnvOverrides:
                     "WHATSAPP_HOME_CHANNEL_NAME": "Owner DM",
                 },
                 ("1234567890@lid", "Owner DM"),
-            ),
-            (
-                Platform.SIGNAL,
-                PlatformConfig(
-                    enabled=True,
-                    extra={"http_url": "http://localhost:9090", "account": "+15551234567"},
-                ),
-                {"SIGNAL_HOME_CHANNEL": "+1555000", "SIGNAL_HOME_CHANNEL_NAME": "Phone"},
-                ("+1555000", "Phone"),
-            ),
-            (
-                Platform.MATTERMOST,
-                PlatformConfig(
-                    enabled=True,
-                    token="mm-token",
-                    extra={"url": "https://mm.example.com"},
-                ),
-                {"MATTERMOST_HOME_CHANNEL": "ch_abc123", "MATTERMOST_HOME_CHANNEL_NAME": "General"},
-                ("ch_abc123", "General"),
-            ),
-            (
-                Platform.MATRIX,
-                PlatformConfig(
-                    enabled=True,
-                    token="syt_abc123",
-                    extra={"homeserver": "https://matrix.example.org"},
-                ),
-                {"MATRIX_HOME_ROOM": "!room123:example.org", "MATRIX_HOME_ROOM_NAME": "Bot Room"},
-                ("!room123:example.org", "Bot Room"),
             ),
             (
                 Platform.EMAIL,

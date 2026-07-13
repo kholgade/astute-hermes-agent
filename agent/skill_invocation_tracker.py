@@ -63,7 +63,7 @@ def get_skill_last_used(skill_name: str) -> datetime | None:
     try:
         for log_file in sorted(log_dir.glob("usage_*.jsonl"), reverse=True):
             try:
-                with open(log_file, "r") as f:
+                with open(log_file, "r", encoding="utf-8") as f:
                     for line in f:
                         if not line.strip():
                             continue

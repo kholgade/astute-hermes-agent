@@ -174,16 +174,16 @@ class TestOverflowFirstMessage:
 
 
 class TestFeishuFallbackThreadRouting:
-    """Verify FeishuAdapter._send_raw_message routes to topic on fallback."""
+    """Verify TelegramAdapter._send_raw_message routes to topic on fallback."""
 
     @pytest.mark.asyncio
     async def test_create_uses_thread_id_when_available(self):
         """When reply_to=None and metadata has thread_id, message.create
         should use receive_id_type='thread_id'."""
-        from plugins.platforms.feishu.adapter import FeishuAdapter
+        from plugins.platforms.telegram.adapter import TelegramAdapter
 
         # We test the _send_raw_message method directly by mocking the client
-        adapter = MagicMock(spec=FeishuAdapter)
+        adapter = MagicMock(spec=TelegramAdapter)
 
         # Set up the real _send_raw_message logic manually
         mock_client = MagicMock()
@@ -195,8 +195,8 @@ class TestFeishuFallbackThreadRouting:
 
         # Use the real implementation path
         adapter._client = mock_client
-        adapter._build_create_message_body = FeishuAdapter._build_create_message_body
-        adapter._build_create_message_request = FeishuAdapter._build_create_message_request
+        adapter._build_create_message_body = TelegramAdapter._build_create_message_body
+        adapter._build_create_message_request = TelegramAdapter._build_create_message_request
         # _send_raw_message routes blocking SDK calls through _run_blocking
         # (adapter-owned executor). On a MagicMock(spec=...) that method is
         # auto-mocked and would swallow the real call, so wire a passthrough.
@@ -206,7 +206,7 @@ class TestFeishuFallbackThreadRouting:
 
         # Call _send_raw_message with reply_to=None and thread_id in metadata
         import json
-        result = await FeishuAdapter._send_raw_message(
+        result = await TelegramAdapter._send_raw_message(
             adapter,
             chat_id="oc_main_chat",
             msg_type="text",
@@ -243,7 +243,7 @@ class TestFeishuFallbackThreadRouting:
     async def test_create_uses_chat_id_when_no_thread(self):
         """When reply_to=None and metadata has no thread_id, message.create
         should use receive_id_type='chat_id' (original behavior)."""
-        from plugins.platforms.feishu.adapter import FeishuAdapter
+        from plugins.platforms.telegram.adapter import TelegramAdapter
 
         mock_client = MagicMock()
         mock_create_response = SimpleNamespace(
@@ -252,16 +252,16 @@ class TestFeishuFallbackThreadRouting:
         )
         mock_client.im.v1.message.create = MagicMock(return_value=mock_create_response)
 
-        adapter = MagicMock(spec=FeishuAdapter)
+        adapter = MagicMock(spec=TelegramAdapter)
         adapter._client = mock_client
-        adapter._build_create_message_body = FeishuAdapter._build_create_message_body
-        adapter._build_create_message_request = FeishuAdapter._build_create_message_request
+        adapter._build_create_message_body = TelegramAdapter._build_create_message_body
+        adapter._build_create_message_request = TelegramAdapter._build_create_message_request
         async def _run_blocking_passthrough(func, *args):
             return func(*args)
         adapter._run_blocking = _run_blocking_passthrough
 
         import json
-        result = await FeishuAdapter._send_raw_message(
+        result = await TelegramAdapter._send_raw_message(
             adapter,
             chat_id="oc_main_chat",
             msg_type="text",

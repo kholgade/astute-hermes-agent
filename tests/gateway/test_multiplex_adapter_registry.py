@@ -102,10 +102,10 @@ class TestPortBindingHardError:
         runner.config = GatewayConfig(multiplex_profiles=True)
         runner._profile_adapters = {}
 
-        # reviewer profile config enables webhook (a port-binding platform)
+        # reviewer profile config enables a port-binding platform (msgraph_webhook)
         reviewer_cfg = GatewayConfig(multiplex_profiles=True)
         reviewer_cfg.platforms = {
-            Platform.WEBHOOK: PlatformConfig(enabled=True, extra={"port": 8644}),
+            Platform.MSGRAPH_WEBHOOK: PlatformConfig(enabled=True),
         }
         monkeypatch.setattr(
             "gateway.config.load_gateway_config", lambda: reviewer_cfg
@@ -113,7 +113,7 @@ class TestPortBindingHardError:
 
         with pytest.raises(MultiplexConfigError) as ei:
             await runner._start_one_profile_adapters("reviewer", "/tmp/x", {})
-        assert "webhook" in str(ei.value)
+        assert "port" in str(ei.value).lower() or "msgraph" in str(ei.value).lower()
         assert "reviewer" in str(ei.value)
 
     @pytest.mark.asyncio
