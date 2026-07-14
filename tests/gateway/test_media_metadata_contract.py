@@ -49,20 +49,12 @@ def test_send_image_accepts_metadata(module_name, class_name):
 # platform SDK isn't installed are skipped; an adapter that imports but
 # whose override drops metadata is a hard failure.
 _ALL_ADAPTERS = [
-    ("gateway.platforms.bluebubbles", "BlueBubblesAdapter"),
-    ("plugins.platforms.dingtalk.adapter", "DingTalkAdapter"),
-    ("gateway.platforms.discord", "DiscordAdapter"),
+    ("plugins.platforms.discord.adapter", "DiscordAdapter"),
     ("plugins.platforms.email.adapter", "EmailAdapter"),
-    ("plugins.platforms.feishu.adapter", "FeishuAdapter"),
-    ("plugins.platforms.matrix.adapter", "MatrixAdapter"),
-    ("gateway.platforms.mattermost", "MattermostAdapter"),
-    ("gateway.platforms.signal", "SignalAdapter"),
-    ("plugins.platforms.slack.adapter", "SlackAdapter"),
+    ("plugins.platforms.sms.adapter", "SmsAdapter"),
     ("plugins.platforms.telegram.adapter", "TelegramAdapter"),
-    ("plugins.platforms.wecom.adapter", "WeComAdapter"),
-    ("gateway.platforms.weixin", "WeixinAdapter"),
     ("plugins.platforms.whatsapp.adapter", "WhatsAppAdapter"),
-    ("gateway.platforms.yuanbao", "YuanbaoAdapter"),
+    ("gateway.platforms.whatsapp_cloud", "WhatsAppCloudAdapter"),
 ]
 
 

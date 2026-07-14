@@ -76,4 +76,4 @@ async def test_safe_disconnect_times_out_and_continues(bare_runner, monkeypatch,
         await bare_runner._safe_adapter_disconnect(adapter, Platform.TELEGRAM)
 
     adapter.disconnect.assert_awaited_once()
-    assert "Timed out after 0.0s while disconnecting feishu adapter" in caplog.text
+    assert "Timed out after 0.0s while disconnecting telegram adapter" in caplog.text

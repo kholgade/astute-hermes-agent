@@ -3575,7 +3575,7 @@ class DiscordAdapter(BasePlatformAdapter):
         """Best-effort cross-platform alert to the gateway operator.
 
         Tries TELEGRAM first (most operators set TELEGRAM_HOME_CHANNEL),
-        then SLACK. Silently no-ops if no other platform is configured
+        then DISCORD. Silently no-ops if no other platform is configured
         with a home channel.
 
         A soft send failure -- adapter.send() returning a result with
@@ -3583,13 +3583,13 @@ class DiscordAdapter(BasePlatformAdapter):
         chain. Treating a SendResult(success=False) as delivered would
         mean a Telegram outage that the adapter politely surfaces (e.g.
         rate-limit, auth failure) silently swallows the alert without
-        attempting Slack. Hard exceptions still take the same path via
-        the except branch below.
+        attempting the fallback. Hard exceptions still take the same path
+        via the except branch below.
         """
         runner = getattr(self, "gateway_runner", None)
         if not runner:
             return
-        for target in (Platform.TELEGRAM, Platform.SLACK):
+        for target in (Platform.TELEGRAM, Platform.DISCORD):
             try:
                 adapter = runner.adapters.get(target)
                 if not adapter:

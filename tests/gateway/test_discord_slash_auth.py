@@ -421,20 +421,20 @@ async def test_notify_silently_no_ops_without_runner(adapter):
 
 
 @pytest.mark.asyncio
-async def test_notify_falls_back_to_slack_if_no_telegram(adapter):
+async def test_notify_falls_back_to_discord_if_no_telegram(adapter):
     from gateway.session import Platform
 
-    slack_adapter = SimpleNamespace(send=AsyncMock())
-    home_slack = SimpleNamespace(chat_id="C12345")
+    discord_adapter = SimpleNamespace(send=AsyncMock())
+    home_discord = SimpleNamespace(chat_id="C12345")
     runner = SimpleNamespace(
-        adapters={Platform.TELEGRAM: slack_adapter},
+        adapters={Platform.DISCORD: discord_adapter},
         config=SimpleNamespace(
-            get_home_channel=lambda p: home_slack if p is Platform.TELEGRAM else None,
+            get_home_channel=lambda p: home_discord if p is Platform.DISCORD else None,
         ),
     )
     adapter.gateway_runner = runner
     await adapter._notify_unauthorized_slash("u", "1", 2, 3, "/x", "reason")
-    slack_adapter.send.assert_awaited_once()
+    discord_adapter.send.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -610,7 +610,7 @@ async def test_ignored_beats_allowed(adapter, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_notify_falls_back_to_slack_on_telegram_soft_fail(adapter):
+async def test_notify_falls_back_to_discord_on_telegram_soft_fail(adapter):
     """adapter.send returning SendResult(success=False) must NOT short-
     circuit the fallback chain. Treating a soft failure as delivered
     means a Telegram outage swallows alerts silently."""
@@ -618,14 +618,14 @@ async def test_notify_falls_back_to_slack_on_telegram_soft_fail(adapter):
 
     soft_fail = SimpleNamespace(success=False, error="rate limited")
     telegram_adapter = SimpleNamespace(send=AsyncMock(return_value=soft_fail))
-    slack_adapter = SimpleNamespace(send=AsyncMock())
+    discord_adapter = SimpleNamespace(send=AsyncMock())
     home_tg = SimpleNamespace(chat_id="987654321")
-    home_sl = SimpleNamespace(chat_id="C12345")
-    homes = {Platform.TELEGRAM: home_tg, Platform.TELEGRAM: home_sl}
+    home_dc = SimpleNamespace(chat_id="C12345")
+    homes = {Platform.TELEGRAM: home_tg, Platform.DISCORD: home_dc}
     runner = SimpleNamespace(
         adapters={
             Platform.TELEGRAM: telegram_adapter,
-            Platform.TELEGRAM: slack_adapter,
+            Platform.DISCORD: discord_adapter,
         },
         config=SimpleNamespace(get_home_channel=lambda p: homes.get(p)),
     )
@@ -634,7 +634,7 @@ async def test_notify_falls_back_to_slack_on_telegram_soft_fail(adapter):
     await adapter._notify_unauthorized_slash("u", "1", 2, 3, "/x", "reason")
 
     telegram_adapter.send.assert_awaited_once()
-    slack_adapter.send.assert_awaited_once()
+    discord_adapter.send.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -646,14 +646,14 @@ async def test_notify_returns_on_telegram_truthy_success(adapter):
 
     ok = SimpleNamespace(success=True, message_id="m1")
     telegram_adapter = SimpleNamespace(send=AsyncMock(return_value=ok))
-    slack_adapter = SimpleNamespace(send=AsyncMock())
+    discord_adapter = SimpleNamespace(send=AsyncMock())
     home_tg = SimpleNamespace(chat_id="987654321")
-    home_sl = SimpleNamespace(chat_id="C12345")
-    homes = {Platform.TELEGRAM: home_tg, Platform.TELEGRAM: home_sl}
+    home_dc = SimpleNamespace(chat_id="C12345")
+    homes = {Platform.TELEGRAM: home_tg, Platform.DISCORD: home_dc}
     runner = SimpleNamespace(
         adapters={
             Platform.TELEGRAM: telegram_adapter,
-            Platform.TELEGRAM: slack_adapter,
+            Platform.DISCORD: discord_adapter,
         },
         config=SimpleNamespace(get_home_channel=lambda p: homes.get(p)),
     )
@@ -662,7 +662,7 @@ async def test_notify_returns_on_telegram_truthy_success(adapter):
     await adapter._notify_unauthorized_slash("u", "1", 2, 3, "/x", "reason")
 
     telegram_adapter.send.assert_awaited_once()
-    slack_adapter.send.assert_not_awaited()
+    discord_adapter.send.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
