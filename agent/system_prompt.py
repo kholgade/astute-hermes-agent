@@ -576,7 +576,7 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
         timestamp_line += f"\nModel: {agent.model}"
     if agent.provider:
         timestamp_line += f"\nProvider: {agent.provider}"
-    volatile_parts.append(timestamp_line)
+    volatile_parts.append(f"<session_info>\n{timestamp_line}\n</session_info>")
 
     return {
         "stable":   "\n\n".join(p.strip() for p in stable_parts   if p and p.strip()),

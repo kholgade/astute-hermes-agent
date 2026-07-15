@@ -1041,6 +1041,17 @@ DEFAULT_CONFIG = {
         # plausible-looking output when a real path is blocked.  Costs ~80
         # tokens in the cached system prompt.  Set False to disable globally.
         "task_completion_guidance": True,
+        # Planning enforcement (issue #3).  Assesses each incoming request's
+        # complexity (simple/medium/complex via agent/task_complexity.py's
+        # word-count + multi-step + tool-keyword heuristics) and, when planning
+        # applies, prepends a short "break this into numbered steps first"
+        # instruction to the user message so multi-step work is decomposed
+        # up front instead of drifting across extra REPL turns.  Values:
+        #   "auto"     — plan for medium/complex tasks only (default); simple
+        #                knowledge queries answer directly with no overhead.
+        #   "always"   — enforce planning for every request.
+        #   "disabled" — pure REPL execution, never inject the instruction.
+        "planning_mode": "auto",
         # Universal parallel-tool-call guidance — short prompt block applied to
         # all models that tells the model to batch independent tool calls
         # (reads, searches, web fetches, read-only commands) into one turn

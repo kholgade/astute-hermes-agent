@@ -163,13 +163,13 @@ class TestGetConnectedPlatforms:
             platforms={
                 Platform.TELEGRAM: PlatformConfig(enabled=True, token="t"),
                 Platform.DISCORD: PlatformConfig(enabled=False, token="d"),
-                Platform.TELEGRAM: PlatformConfig(enabled=True),  # no token
+                Platform.WHATSAPP: PlatformConfig(enabled=True),  # no token
             },
         )
         connected = config.get_connected_platforms()
         assert Platform.TELEGRAM in connected
         assert Platform.DISCORD not in connected
-        assert Platform.TELEGRAM not in connected
+        assert Platform.WHATSAPP not in connected
 
     def test_empty_platforms(self):
         config = GatewayConfig()
@@ -960,12 +960,12 @@ class TestLoadGatewayConfig:
             "789": "Creative writing",
         }
 
-    def test_bridges_slack_channel_prompts_from_config_yaml(self, tmp_path, monkeypatch):
+    def test_bridges_channel_prompts_from_config_yaml(self, tmp_path, monkeypatch):
         hermes_home = tmp_path / ".hermes"
         hermes_home.mkdir()
         config_path = hermes_home / "config.yaml"
         config_path.write_text(
-            "slack:\n"
+            "telegram:\n"
             "  channel_prompts:\n"
             '    "C01ABC": Code review mode\n',
             encoding="utf-8",
@@ -978,38 +978,6 @@ class TestLoadGatewayConfig:
         assert config.platforms[Platform.TELEGRAM].extra["channel_prompts"] == {
             "C01ABC": "Code review mode",
         }
-
-    def test_bridges_feishu_allow_bots_from_config_yaml_to_env(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
-        config_path.write_text(
-            "feishu:\n  allow_bots: mentions\n",
-            encoding="utf-8",
-        )
-
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
-        monkeypatch.delenv("FEISHU_ALLOW_BOTS", raising=False)
-
-        load_gateway_config()
-
-        assert os.environ.get("FEISHU_ALLOW_BOTS") == "mentions"
-
-    def test_feishu_allow_bots_env_takes_precedence_over_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
-        config_path.write_text(
-            "feishu:\n  allow_bots: all\n",
-            encoding="utf-8",
-        )
-
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
-        monkeypatch.setenv("FEISHU_ALLOW_BOTS", "none")
-
-        load_gateway_config()
-
-        assert os.environ.get("FEISHU_ALLOW_BOTS") == "none"
 
     def test_bridges_telegram_allow_bots_from_config_yaml_to_env(self, tmp_path, monkeypatch):
         hermes_home = tmp_path / ".hermes"
@@ -1165,7 +1133,7 @@ class TestLoadGatewayConfig:
         hermes_home.mkdir()
         config_path = hermes_home / "config.yaml"
         config_path.write_text(
-            "slack:\n"
+            "telegram:\n"
             "  notice_delivery: private\n",
             encoding="utf-8",
         )
@@ -1258,8 +1226,8 @@ class TestHomeChannelEnvOverrides:
         cases = [
             (
                 Platform.TELEGRAM,
-                PlatformConfig(enabled=True, token="xoxb-from-config"),
-                {"SLACK_HOME_CHANNEL": "C123", "SLACK_HOME_CHANNEL_NAME": "Ops"},
+                PlatformConfig(enabled=True, token="bot-token-from-config"),
+                {"TELEGRAM_HOME_CHANNEL": "C123", "TELEGRAM_HOME_CHANNEL_NAME": "Ops"},
                 ("C123", "Ops"),
             ),
             (

@@ -902,13 +902,6 @@ class HermesConsoleEngine:
                 [("list",), ("test",), ("doctor",), ("revoke",)],
                 {("test",), ("doctor",), ("revoke",)},
             ),
-            "slack": (
-                "hermes_cli.subcommands.slack",
-                "build_slack_parser",
-                "cmd_slack",
-                [("manifest",)],
-                set(),
-            ),
             "profile": (
                 "hermes_cli.subcommands.profile",
                 "build_profile_parser",

@@ -1457,7 +1457,7 @@ class TestSummaryFailureTrackingForGatewayWarning:
         assert "/repo/src/pkg/module.py" in fallback
         assert "C:\\work\\pkg\\module.py" in fallback
         assert "Traceback" in fallback
-        assert "## Last Dropped Turns" in fallback
+        assert "<last_dropped_turns>" in fallback
         assert "TOOL: Traceback in /repo/src/pkg/module.py: boom" in fallback
 
     def test_summary_failure_fallback_preserves_last_dropped_turns_without_tail(self):
@@ -1479,7 +1479,7 @@ class TestSummaryFailureTrackingForGatewayWarning:
             result = c.compress(msgs)
 
         fallback = next(m["content"] for m in result if "Summary generation was unavailable" in m.get("content", ""))
-        assert "## Last Dropped Turns" in fallback
+        assert "<last_dropped_turns>" in fallback
         assert "ASSISTANT: I inspected /tmp/active.py and found the failing branch" in fallback
         assert "TOOL: ValueError: boom in /tmp/active.py" in fallback
         assert "protected tail request must not be copied" not in fallback

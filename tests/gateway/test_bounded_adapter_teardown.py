@@ -65,7 +65,7 @@ async def test_teardown_bounds_hanging_disconnect(bare_runner, monkeypatch, capl
         )
 
     adapter.disconnect.assert_awaited_once()
-    assert "feishu disconnect timed out" in caplog.text
+    assert "telegram disconnect timed out" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ async def test_teardown_bounds_hanging_cancel(bare_runner, monkeypatch, caplog):
             timeout=5.0,
         )
 
-    assert "feishu background-task cancel timed out" in caplog.text
+    assert "telegram background-task cancel timed out" in caplog.text
     # disconnect still attempted after the cancel timeout — forward progress.
     adapter.disconnect.assert_awaited_once()
 
