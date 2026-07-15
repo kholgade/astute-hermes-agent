@@ -166,67 +166,6 @@ class _patch_discord_sender:
         return False
 
 
-def _slack_entry():
-    """Return the live Slack PlatformEntry, importing lazily so plugin
-    discovery is forced exactly once and patches survive across tests."""
-    from hermes_cli.plugins import discover_plugins
-    from gateway.platform_registry import platform_registry
-    discover_plugins()
-    return platform_registry.get("slack")
-
-
-def _make_recording_slack_sender():
-    """Return a plain AsyncMock used to record the formatted Slack text.
-
-    Paired with ``_patch_slack_standalone_sender``, which wraps it so the
-    production ``(pconfig, chat_id, raw_text, thread_id=...)`` call is
-    translated into the pre-migration ``(token, chat_id, formatted_text,
-    thread_ts=...)`` shape — applying ``SlackAdapter.format_message`` exactly
-    as the real plugin ``_standalone_send`` does. Tests can then assert on
-    ``send.await_args.args[2]`` (the formatted mrkdwn) as before.
-    """
-    return AsyncMock(return_value={"success": True, "platform": "slack", "message_id": "1"})
-
-
-class _patch_slack_standalone_sender:
-    """Patch the Slack registry entry's ``standalone_sender_fn`` with a wrapper
-    that replicates the plugin's mrkdwn formatting then delegates to the given
-    mock in the pre-migration call shape. Mirrors ``_patch_discord_sender``.
-
-    Slack mrkdwn formatting moved INTO the plugin's ``_standalone_send`` when
-    the adapter migrated (#41112) — previously ``_send_to_platform`` formatted
-    the message before calling the old ``_send_slack`` helper. This wrapper
-    keeps the "markdown → Slack mrkdwn reaches the wire" behavior tests valid.
-    """
-
-    def __init__(self, mock):
-        self._mock = mock
-        self._entry = None
-        self._original = None
-
-    async def _adapter(self, pconfig, chat_id, message, *, thread_id=None, **_kw):
-        from plugins.platforms.slack.adapter import SlackAdapter
-        formatted = message
-        if message:
-            try:
-                formatted = SlackAdapter.__new__(SlackAdapter).format_message(message)
-            except Exception:
-                pass
-        token = getattr(pconfig, "token", None)
-        return await self._mock(token, chat_id, formatted, thread_ts=thread_id)
-
-    def __enter__(self):
-        self._entry = _slack_entry()
-        self._original = self._entry.standalone_sender_fn
-        self._entry.standalone_sender_fn = self._adapter
-        return self._mock
-
-    def __exit__(self, exc_type, exc, tb):
-        if self._entry is not None:
-            self._entry.standalone_sender_fn = self._original
-        return False
-
-
 def _run_async_immediately(coro):
     return asyncio.run(coro)
 
@@ -248,30 +187,6 @@ def _install_telegram_mock(monkeypatch, bot):
     telegram_mod = SimpleNamespace(Bot=lambda token: bot, MessageEntity=_MessageEntity, constants=constants_mod)
     monkeypatch.setitem(sys.modules, "telegram", telegram_mod)
     monkeypatch.setitem(sys.modules, "telegram.constants", constants_mod)
-
-
-def _ensure_slack_mock(monkeypatch):
-    if "slack_bolt" in sys.modules and hasattr(sys.modules["slack_bolt"], "__file__"):
-        return
-
-    slack_bolt = MagicMock()
-    slack_bolt.async_app.AsyncApp = MagicMock
-    slack_bolt.adapter.socket_mode.async_handler.AsyncSocketModeHandler = MagicMock
-
-    slack_sdk = MagicMock()
-    slack_sdk.web.async_client.AsyncWebClient = MagicMock
-
-    for name, mod in [
-        ("slack_bolt", slack_bolt),
-        ("slack_bolt.async_app", slack_bolt.async_app),
-        ("slack_bolt.adapter", slack_bolt.adapter),
-        ("slack_bolt.adapter.socket_mode", slack_bolt.adapter.socket_mode),
-        ("slack_bolt.adapter.socket_mode.async_handler", slack_bolt.adapter.socket_mode.async_handler),
-        ("slack_sdk", slack_sdk),
-        ("slack_sdk.web", slack_sdk.web),
-        ("slack_sdk.web.async_client", slack_sdk.web.async_client),
-    ]:
-        monkeypatch.setitem(sys.modules, name, mod)
 
 
 class TestSendMessageTool:
@@ -417,81 +332,6 @@ class TestSendMessageTool:
             "-1001",
             "hello",
             thread_id="17585",
-            media_files=[],
-            force_document=False,
-        )
-
-    def test_resolved_slack_thread_name_preserves_thread_id(self):
-        slack_cfg = SimpleNamespace(enabled=True, token="xoxb-test", extra={})
-        config = SimpleNamespace(
-            platforms={Platform.TELEGRAM: slack_cfg},
-            get_home_channel=lambda _platform: None,
-        )
-
-        with patch("gateway.config.load_gateway_config", return_value=config), \
-             patch("tools.interrupt.is_interrupted", return_value=False), \
-             patch("gateway.channel_directory.resolve_channel_name", return_value="C123ABCDEF:171.000001"), \
-             patch("model_tools._run_async", side_effect=_run_async_immediately), \
-             patch("tools.send_message_tool._send_to_platform", new=AsyncMock(return_value={"success": True})) as send_mock, \
-             patch("gateway.mirror.mirror_to_session", return_value=True):
-            result = json.loads(
-                send_message_tool(
-                    {
-                        "action": "send",
-                        "target": "slack:ops / topic 171.000001",
-                        "message": "hello",
-                    }
-                )
-            )
-
-        assert result["success"] is True
-        send_mock.assert_awaited_once_with(
-            Platform.TELEGRAM,
-            slack_cfg,
-            "C123ABCDEF",
-            "hello",
-            thread_id="171.000001",
-            media_files=[],
-            force_document=False,
-        )
-
-    def test_resolved_matrix_thread_name_preserves_thread_id(self):
-        matrix_cfg = SimpleNamespace(
-            enabled=True,
-            token="tok",
-            extra={"homeserver": "https://matrix.example.com"},
-        )
-        config = SimpleNamespace(
-            platforms={Platform.TELEGRAM: matrix_cfg},
-            get_home_channel=lambda _platform: None,
-        )
-
-        with patch("gateway.config.load_gateway_config", return_value=config), \
-             patch("tools.interrupt.is_interrupted", return_value=False), \
-             patch(
-                 "gateway.channel_directory.resolve_channel_name",
-                 return_value="!roomid:matrix.example.org:$thread123:matrix.example.org",
-             ), \
-             patch("model_tools._run_async", side_effect=_run_async_immediately), \
-             patch("tools.send_message_tool._send_to_platform", new=AsyncMock(return_value={"success": True})) as send_mock, \
-             patch("gateway.mirror.mirror_to_session", return_value=True):
-            result = json.loads(
-                send_message_tool(
-                    {
-                        "action": "send",
-                        "target": "matrix:Ops / topic $thread123",
-                        "message": "hello",
-                    }
-                )
-            )
-
-        assert result["success"] is True
-        send_mock.assert_awaited_once_with(
-            Platform.TELEGRAM,
-            matrix_cfg,
-            "!roomid:matrix.example.org",
-            "hello",
-            thread_id="$thread123:matrix.example.org",
             media_files=[],
             force_document=False,
         )
@@ -727,114 +567,6 @@ class TestSendToPlatformChunking:
         for call in send.await_args_list:
             assert len(call.args[2]) <= 2020  # each chunk fits the limit
 
-    def test_slack_messages_are_formatted_before_send(self, monkeypatch):
-        _ensure_slack_mock(monkeypatch)
-
-        import plugins.platforms.slack.adapter as slack_mod
-
-        monkeypatch.setattr(slack_mod, "SLACK_AVAILABLE", True)
-        send = _make_recording_slack_sender()
-
-        with _patch_slack_standalone_sender(send):
-            result = asyncio.run(
-                _send_to_platform(
-                    Platform.TELEGRAM,
-                    SimpleNamespace(enabled=True, token="***", extra={}),
-                    "C123",
-                    "**hello** from [Hermes](<https://example.com>)",
-                )
-            )
-
-        assert result["success"] is True
-        send.assert_awaited_once_with(
-            "***",
-            "C123",
-            "*hello* from <https://example.com|Hermes>",
-            thread_ts=None,
-        )
-
-    def test_slack_bold_italic_formatted_before_send(self, monkeypatch):
-        """Bold+italic ***text*** survives tool-layer formatting."""
-        _ensure_slack_mock(monkeypatch)
-        import plugins.platforms.slack.adapter as slack_mod
-
-        monkeypatch.setattr(slack_mod, "SLACK_AVAILABLE", True)
-        send = _make_recording_slack_sender()
-        with _patch_slack_standalone_sender(send):
-            result = asyncio.run(
-                _send_to_platform(
-                    Platform.TELEGRAM,
-                    SimpleNamespace(enabled=True, token="***", extra={}),
-                    "C123",
-                    "***important*** update",
-                )
-            )
-        assert result["success"] is True
-        sent_text = send.await_args.args[2]
-        assert "*_important_*" in sent_text
-
-    def test_slack_blockquote_formatted_before_send(self, monkeypatch):
-        """Blockquote '>' markers must survive formatting (not escaped to '&gt;')."""
-        _ensure_slack_mock(monkeypatch)
-        import plugins.platforms.slack.adapter as slack_mod
-
-        monkeypatch.setattr(slack_mod, "SLACK_AVAILABLE", True)
-        send = _make_recording_slack_sender()
-        with _patch_slack_standalone_sender(send):
-            result = asyncio.run(
-                _send_to_platform(
-                    Platform.TELEGRAM,
-                    SimpleNamespace(enabled=True, token="***", extra={}),
-                    "C123",
-                    "> important quote\n\nnormal text & stuff",
-                )
-            )
-        assert result["success"] is True
-        sent_text = send.await_args.args[2]
-        assert sent_text.startswith("> important quote")
-        assert "&amp;" in sent_text  # & is escaped
-        assert "&gt;" not in sent_text.split("\n")[0]  # > in blockquote is NOT escaped
-
-    def test_slack_pre_escaped_entities_not_double_escaped(self, monkeypatch):
-        """Pre-escaped HTML entities survive tool-layer formatting without double-escaping."""
-        _ensure_slack_mock(monkeypatch)
-        import plugins.platforms.slack.adapter as slack_mod
-        monkeypatch.setattr(slack_mod, "SLACK_AVAILABLE", True)
-        send = _make_recording_slack_sender()
-        with _patch_slack_standalone_sender(send):
-            result = asyncio.run(
-                _send_to_platform(
-                    Platform.TELEGRAM,
-                    SimpleNamespace(enabled=True, token="***", extra={}),
-                    "C123",
-                    "AT&amp;T &lt;tag&gt; test",
-                )
-            )
-        assert result["success"] is True
-        sent_text = send.await_args.args[2]
-        assert "&amp;amp;" not in sent_text
-        assert "&amp;lt;" not in sent_text
-        assert "AT&amp;T" in sent_text
-
-    def test_slack_url_with_parens_formatted_before_send(self, monkeypatch):
-        """Wikipedia-style URL with parens survives tool-layer formatting."""
-        _ensure_slack_mock(monkeypatch)
-        import plugins.platforms.slack.adapter as slack_mod
-        monkeypatch.setattr(slack_mod, "SLACK_AVAILABLE", True)
-        send = _make_recording_slack_sender()
-        with _patch_slack_standalone_sender(send):
-            result = asyncio.run(
-                _send_to_platform(
-                    Platform.TELEGRAM,
-                    SimpleNamespace(enabled=True, token="***", extra={}),
-                    "C123",
-                    "See [Foo](https://en.wikipedia.org/wiki/Foo_(bar))",
-                )
-            )
-        assert result["success"] is True
-        sent_text = send.await_args.args[2]
-        assert "<https://en.wikipedia.org/wiki/Foo_(bar)|Foo>" in sent_text
-
     def test_telegram_markdown_expansion_is_chunked_before_send(self, monkeypatch):
         """Telegram chunking must account for MarkdownV2 escaping expansion.
 
@@ -904,116 +636,6 @@ class TestSendToPlatformChunking:
         assert result["success"] is True
         assert bot.send_message.await_count >= 3
         bot.send_photo.assert_awaited_once()
-
-    def test_matrix_media_uses_native_adapter_helper(self, tmp_path):
-        doc_path = tmp_path / "test-send-message-matrix.pdf"
-        doc_path.write_bytes(b"%PDF-1.4 test")
-
-        try:
-            helper = AsyncMock(return_value={"success": True, "platform": "matrix", "chat_id": "!room:example.com", "message_id": "$evt"})
-            with patch("tools.send_message_tool._send_matrix_via_adapter", helper):
-                result = asyncio.run(
-                    _send_to_platform(
-                        Platform.TELEGRAM,
-                        SimpleNamespace(enabled=True, token="tok", extra={"homeserver": "https://matrix.example.com"}),
-                        "!room:example.com",
-                        "here you go",
-                        media_files=[(str(doc_path), False)],
-                    )
-                )
-
-            assert result["success"] is True
-            helper.assert_awaited_once()
-            call = helper.await_args
-            assert call.args[1] == "!room:example.com"
-            assert call.args[2] == "here you go"
-            assert call.kwargs["media_files"] == [(str(doc_path), False)]
-        finally:
-            doc_path.unlink(missing_ok=True)
-
-    def test_matrix_text_only_uses_adapter_path(self):
-        """Text-only Matrix sends must go through the E2EE-capable adapter.
-
-        The raw-HTTP standalone path (registry standalone_sender_fn) sends
-        cleartext, so in an E2EE room text-only messages arrived with a red
-        padlock. All Matrix sends now route through _send_matrix_via_adapter,
-        which encrypts via the mautrix adapter (live gateway session when
-        available, encryption-aware ephemeral adapter otherwise)."""
-        from hermes_cli.plugins import discover_plugins
-        from gateway.platform_registry import platform_registry
-        discover_plugins()
-        helper = AsyncMock(return_value={"success": True, "platform": "matrix", "chat_id": "!room:ex.com", "message_id": "$txt"})
-        standalone = AsyncMock()
-        matrix_entry = platform_registry.get("matrix")
-        original_sender = matrix_entry.standalone_sender_fn
-        matrix_entry.standalone_sender_fn = standalone
-        try:
-            with patch("tools.send_message_tool._send_matrix_via_adapter", helper):
-                result = asyncio.run(
-                    _send_to_platform(
-                        Platform.TELEGRAM,
-                        SimpleNamespace(enabled=True, token="tok", extra={"homeserver": "https://matrix.example.com"}),
-                        "!room:ex.com",
-                        "just text, no files",
-                    )
-                )
-        finally:
-            matrix_entry.standalone_sender_fn = original_sender
-
-        assert result["success"] is True
-        helper.assert_awaited_once()
-        standalone.assert_not_awaited()
-
-    def test_send_matrix_via_adapter_sends_document(self, tmp_path):
-        file_path = tmp_path / "report.pdf"
-        file_path.write_bytes(b"%PDF-1.4 test")
-
-        calls = []
-
-        class FakeAdapter:
-            def __init__(self, _config):
-                self.connected = False
-
-            async def connect(self, *, is_reconnect: bool = False):
-                self.connected = True
-                calls.append(("connect",))
-                return True
-
-            async def send(self, chat_id, message, metadata=None):
-                calls.append(("send", chat_id, message, metadata))
-                return SimpleNamespace(success=True, message_id="$text")
-
-            async def send_document(self, chat_id, file_path, metadata=None):
-                calls.append(("send_document", chat_id, file_path, metadata))
-                return SimpleNamespace(success=True, message_id="$file")
-
-            async def disconnect(self):
-                calls.append(("disconnect",))
-
-        fake_module = SimpleNamespace(MatrixAdapter=FakeAdapter)
-
-        with patch.dict(sys.modules, {"plugins.platforms.matrix.adapter": fake_module}):
-            result = asyncio.run(
-                _send_matrix_via_adapter(
-                    SimpleNamespace(enabled=True, token="tok", extra={"homeserver": "https://matrix.example.com"}),
-                    "!room:example.com",
-                    "report attached",
-                    media_files=[(str(file_path), False)],
-                )
-            )
-
-        assert result == {
-            "success": True,
-            "platform": "matrix",
-            "chat_id": "!room:example.com",
-            "message_id": "$file",
-        }
-        assert calls == [
-            ("connect",),
-            ("send", "!room:example.com", "report attached", None),
-            ("send_document", "!room:example.com", str(file_path), None),
-            ("disconnect",),
-        ]
 
 
 # ---------------------------------------------------------------------------
@@ -1344,7 +966,7 @@ class TestParseTargetRefE164:
         """'+' prefix must NOT be treated as explicit for non-phone platforms."""
         assert _parse_target_ref("telegram", "+15551234567")[2] is False
         assert _parse_target_ref("discord", "+15551234567")[2] is False
-        assert _parse_target_ref("matrix", "+15551234567")[2] is False
+        assert _parse_target_ref("email", "+15551234567")[2] is False
 
 
 class TestParseTargetRefWhatsAppJID:
@@ -1432,7 +1054,7 @@ class TestParseTargetRefEmail:
     def test_email_not_explicit_for_other_platforms(self):
         assert _parse_target_ref("telegram", "user@example.com")[2] is False
         assert _parse_target_ref("discord", "user@example.com")[2] is False
-        assert _parse_target_ref("slack", "user@example.com")[2] is False
+        assert _parse_target_ref("whatsapp", "user@example.com")[2] is False
 
 
 class TestEmailHomeChannelErrorHint:

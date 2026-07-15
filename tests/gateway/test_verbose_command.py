@@ -154,11 +154,11 @@ class TestVerboseCommand:
 
     @pytest.mark.asyncio
     async def test_per_platform_isolation(self, tmp_path, monkeypatch):
-        """Cycling /verbose on Telegram doesn't change Slack's setting.
+        """Cycling /verbose on Telegram doesn't change WhatsApp Cloud's setting.
 
         Without a global tool_progress, each platform uses its built-in
-        default — Telegram = 'off' (tier-1 inbox override), Slack = 'off'
-        (quiet Slack default). Both cycle to 'new' on first /verbose.
+        default — Telegram = 'off' (tier-1 inbox override), WhatsApp Cloud =
+        'off' (tier-3 quiet default). Both cycle to 'new' on first /verbose.
         """
         hermes_home = tmp_path / "hermes"
         hermes_home.mkdir()
@@ -176,17 +176,17 @@ class TestVerboseCommand:
         await runner._handle_verbose_command(
             _make_event(platform=Platform.TELEGRAM)
         )
-        # Cycle on Slack
+        # Cycle on WhatsApp Cloud
         await runner._handle_verbose_command(
-            _make_event(platform=Platform.TELEGRAM)
+            _make_event(platform=Platform.WHATSAPP_CLOUD)
         )
 
         saved = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         platforms = saved["display"]["platforms"]
         # Telegram: off -> new (platform default = off, tier-1 inbox override)
         assert platforms["telegram"]["tool_progress"] == "new"
-        # Slack: off -> new (first /verbose cycle from quiet default)
-        assert platforms["slack"]["tool_progress"] == "new"
+        # WhatsApp Cloud: off -> new (first /verbose cycle from quiet default)
+        assert platforms["whatsapp_cloud"]["tool_progress"] == "new"
 
     @pytest.mark.asyncio
     async def test_no_config_file_returns_disabled(self, tmp_path, monkeypatch):

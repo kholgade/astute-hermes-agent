@@ -156,37 +156,18 @@ class TestResolveDeliveryTarget:
     @pytest.mark.parametrize(
         ("platform", "env_var", "chat_id"),
         [
-            ("matrix", "MATRIX_HOME_ROOM", "!bot-room:example.org"),
-            ("signal", "SIGNAL_HOME_CHANNEL", "+15551234567"),
-            ("mattermost", "MATTERMOST_HOME_CHANNEL", "team-town-square"),
             ("sms", "SMS_HOME_CHANNEL", "+15557654321"),
             ("email", "EMAIL_HOME_ADDRESS", "home@example.com"),
-            ("dingtalk", "DINGTALK_HOME_CHANNEL", "cidNNN"),
-            ("feishu", "FEISHU_HOME_CHANNEL", "oc_home"),
-            ("wecom", "WECOM_HOME_CHANNEL", "wecom-home"),
-            ("weixin", "WEIXIN_HOME_CHANNEL", "wxid_home"),
-            ("qqbot", "QQ_HOME_CHANNEL", "group-openid-home"),
         ],
     )
     def test_origin_delivery_without_origin_falls_back_to_supported_home_channels(
         self, monkeypatch, platform, env_var, chat_id
     ):
         for fallback_env in (
-            "MATRIX_HOME_ROOM",
-            "MATRIX_HOME_CHANNEL",
             "TELEGRAM_HOME_CHANNEL",
             "DISCORD_HOME_CHANNEL",
-            "SLACK_HOME_CHANNEL",
-            "SIGNAL_HOME_CHANNEL",
-            "MATTERMOST_HOME_CHANNEL",
             "SMS_HOME_CHANNEL",
             "EMAIL_HOME_ADDRESS",
-            "DINGTALK_HOME_CHANNEL",
-            "BLUEBUBBLES_HOME_CHANNEL",
-            "FEISHU_HOME_CHANNEL",
-            "WECOM_HOME_CHANNEL",
-            "WEIXIN_HOME_CHANNEL",
-            "QQ_HOME_CHANNEL",
         ):
             monkeypatch.delenv(fallback_env, raising=False)
         monkeypatch.setenv(env_var, chat_id)
@@ -194,16 +175,6 @@ class TestResolveDeliveryTarget:
         assert _resolve_delivery_target({"deliver": "origin"}) == {
             "platform": platform,
             "chat_id": chat_id,
-            "thread_id": None,
-        }
-
-    def test_bare_matrix_delivery_uses_matrix_home_room(self, monkeypatch):
-        monkeypatch.delenv("MATRIX_HOME_CHANNEL", raising=False)
-        monkeypatch.setenv("MATRIX_HOME_ROOM", "!room123:example.org")
-
-        assert _resolve_delivery_target({"deliver": "matrix"}) == {
-            "platform": "matrix",
-            "chat_id": "!room123:example.org",
             "thread_id": None,
         }
 
@@ -473,19 +444,17 @@ class TestRoutingIntents:
 
         monkeypatch.setenv("TELEGRAM_HOME_CHANNEL", "-111")
         monkeypatch.setenv("DISCORD_HOME_CHANNEL", "-222")
-        monkeypatch.setenv("SLACK_HOME_CHANNEL", "C333")
-        # Sanity: platforms without the env var must NOT appear in the expansion.
-        monkeypatch.delenv("SIGNAL_HOME_CHANNEL", raising=False)
-        monkeypatch.delenv("MATRIX_HOME_ROOM", raising=False)
+        monkeypatch.setenv("SMS_HOME_CHANNEL", "+15551234567")
+        # Sanity: a platform without the env var must NOT appear in the expansion.
+        monkeypatch.delenv("EMAIL_HOME_ADDRESS", raising=False)
 
         targets = _resolve_delivery_targets({"deliver": "all", "origin": None})
         platforms = sorted(t["platform"] for t in targets)
 
         assert "telegram" in platforms
         assert "discord" in platforms
-        assert "slack" in platforms
-        assert "signal" not in platforms
-        assert "matrix" not in platforms
+        assert "sms" in platforms
+        assert "email" not in platforms
 
     def test_all_combines_with_explicit_target_and_dedups(self, monkeypatch):
         """'telegram:-999,all' yields every home channel + the explicit target without dupes."""
@@ -4093,39 +4062,39 @@ class TestCronDeliveryTargets:
     def test_lists_configured_platforms_flagging_missing_home_channel(self, monkeypatch):
         from cron.scheduler import cron_delivery_targets
 
-        self._patch_connected(monkeypatch, ["matrix", "telegram"])
-        monkeypatch.delenv("MATRIX_HOME_ROOM", raising=False)
+        self._patch_connected(monkeypatch, ["discord", "telegram"])
+        monkeypatch.delenv("DISCORD_HOME_CHANNEL", raising=False)
         monkeypatch.delenv("TELEGRAM_HOME_CHANNEL", raising=False)
 
         targets = {t["id"]: t for t in cron_delivery_targets()}
 
-        assert set(targets) == {"matrix", "telegram"}
+        assert set(targets) == {"discord", "telegram"}
         # Configured but no home channel → surfaced, flagged for the UI.
-        assert targets["matrix"]["home_target_set"] is False
-        assert targets["matrix"]["home_env_var"] == "MATRIX_HOME_ROOM"
+        assert targets["discord"]["home_target_set"] is False
+        assert targets["discord"]["home_env_var"] == "DISCORD_HOME_CHANNEL"
         assert targets["telegram"]["home_target_set"] is False
 
     def test_home_channel_set_marks_target_ready(self, monkeypatch):
         from cron.scheduler import cron_delivery_targets
 
-        self._patch_connected(monkeypatch, ["matrix"])
-        monkeypatch.setenv("MATRIX_HOME_ROOM", "!room:matrix.org")
+        self._patch_connected(monkeypatch, ["discord"])
+        monkeypatch.setenv("DISCORD_HOME_CHANNEL", "-999")
 
         targets = {t["id"]: t for t in cron_delivery_targets()}
 
-        assert targets["matrix"]["home_target_set"] is True
+        assert targets["discord"]["home_target_set"] is True
 
     def test_unconfigured_platforms_excluded(self, monkeypatch):
         from cron.scheduler import cron_delivery_targets
 
-        # Only telegram is connected; matrix env var set but gateway not configured.
+        # Only telegram is connected; discord env var set but gateway not configured.
         self._patch_connected(monkeypatch, ["telegram"])
-        monkeypatch.setenv("MATRIX_HOME_ROOM", "!room:matrix.org")
+        monkeypatch.setenv("DISCORD_HOME_CHANNEL", "-999")
 
         ids = {t["id"] for t in cron_delivery_targets()}
 
         assert ids == {"telegram"}
-        assert "matrix" not in ids
+        assert "discord" not in ids
 
     def test_no_gateway_config_returns_empty(self, monkeypatch):
         import gateway.config as gateway_config
@@ -4552,33 +4521,33 @@ class TestCronContinuableSurfaceInChannel:
 
     Design: decisions.md D1/D2/D6 + F5. The scheduler reads the per-platform key
     generically from pconfig.extra; the in_channel branch is gated on the
-    adapter capability flag ``supports_inchannel_continuable`` (Slack=True,
-    others fail SAFE to thread). In in_channel mode the thread-open branch is
-    SKIPPED (thread_id stays None), then ``_seed_cron_channel_session`` CREATES
-    the flat shared-channel session and mirrors the brief into it (the shipped
-    mirror only APPENDS to an existing session, and the flat channel row is
-    otherwise absent for a chat_postMessage delivery).
+    adapter capability flag ``supports_inchannel_continuable`` (platform-specific
+    opt-in; others fail SAFE to thread). In in_channel mode the thread-open
+    branch is SKIPPED (thread_id stays None), then ``_seed_cron_channel_session``
+    CREATES the flat shared-channel session and mirrors the brief into it (the
+    shipped mirror only APPENDS to an existing session, and the flat channel row
+    is otherwise absent for a channel-post delivery).
     """
 
-    def _slack_cfg(self, extra):
-        """A mock GatewayConfig with a Telegram pconfig carrying ``extra``."""
+    def _discord_cfg(self, extra):
+        """A mock GatewayConfig with a Discord pconfig carrying ``extra``."""
         from gateway.config import Platform
 
         pconfig = MagicMock()
         pconfig.enabled = True
         pconfig.extra = extra
         mock_cfg = MagicMock()
-        mock_cfg.platforms = {Platform.TELEGRAM: pconfig}
+        mock_cfg.platforms = {Platform.DISCORD: pconfig}
         return mock_cfg
 
     def _run_inchannel_delivery(self, extra, adapter, *, mirror_ok=True, origin=None):
-        """Drive _deliver_result down the live-adapter path for a Slack
+        """Drive _deliver_result down the live-adapter path for a Discord
         channel-origin job with the given ``extra`` config. Returns the
         _open_continuable_cron_thread mock and the mirror_to_session mock."""
         from gateway.config import Platform
         from concurrent.futures import Future
 
-        mock_cfg = self._slack_cfg(extra)
+        mock_cfg = self._discord_cfg(extra)
 
         loop = MagicMock()
         loop.is_running.return_value = True
@@ -4599,7 +4568,7 @@ class TestCronContinuableSurfaceInChannel:
             # Channel origin: no thread_id (flat channel message scheduled it).
             # Carries the scheduling user's id — the in_channel seed must key
             # the flat channel session to THIS user (see build_session_key).
-            "origin": origin or {"platform": "slack", "chat_id": "C123", "user_id": "U_HUMAN"},
+            "origin": origin or {"platform": "discord", "chat_id": "C123", "user_id": "U_HUMAN"},
             # Opt into the continuable mirror.
             "attach_to_session": True,
         }
@@ -4611,11 +4580,11 @@ class TestCronContinuableSurfaceInChannel:
              patch("gateway.mirror.mirror_to_session", return_value=mirror_ok) as mirror_mock:
             _deliver_result(
                 job, "Here is today's brief.",
-                adapters={Platform.TELEGRAM: adapter}, loop=loop,
+                adapters={Platform.DISCORD: adapter}, loop=loop,
             )
         return open_thread_mock, mirror_mock
 
-    def _slack_adapter(self, supports_inchannel=True, with_store=True):
+    def _discord_adapter(self, supports_inchannel=True, with_store=True):
         adapter = AsyncMock()
         adapter.send.return_value = MagicMock(success=True)
         # Capability flag read via getattr in the scheduler.
@@ -4629,7 +4598,7 @@ class TestCronContinuableSurfaceInChannel:
 
     def test_in_channel_skips_thread_open(self):
         """G2: in_channel mode must NOT open a handoff thread."""
-        adapter = self._slack_adapter(supports_inchannel=True)
+        adapter = self._discord_adapter(supports_inchannel=True)
         open_thread_mock, _ = self._run_inchannel_delivery(
             {"cron_continuable_surface": "in_channel"}, adapter,
         )
@@ -4641,7 +4610,7 @@ class TestCronContinuableSurfaceInChannel:
         it. The prior implementation relied on the bare mirror, which no-ops
         when the flat row doesn't already exist — so the brief was silently lost
         (verified live). This asserts the create-then-mirror handoff."""
-        adapter = self._slack_adapter(supports_inchannel=True)
+        adapter = self._discord_adapter(supports_inchannel=True)
         _, mirror_mock = self._run_inchannel_delivery(
             {"cron_continuable_surface": "in_channel"}, adapter,
         )
@@ -4658,7 +4627,7 @@ class TestCronContinuableSurfaceInChannel:
         # Brief mirrored flat into that row.
         mirror_mock.assert_called_once()
         assert mirror_mock.call_args.kwargs.get("thread_id") is None
-        assert mirror_mock.call_args[0][0] == "slack"
+        assert mirror_mock.call_args[0][0] == "discord"
         assert mirror_mock.call_args[0][1] == "C123"
         assert "Here is today's brief." in mirror_mock.call_args[0][2]
 
@@ -4667,10 +4636,10 @@ class TestCronContinuableSurfaceInChannel:
         chat_type='dm'. The DM session key does NOT embed user_id, so any
         user_id resolves to the same session — but chat_type must be 'dm' so the
         key prefix matches the inbound DM reply's key."""
-        adapter = self._slack_adapter(supports_inchannel=True)
+        adapter = self._discord_adapter(supports_inchannel=True)
         _, mirror_mock = self._run_inchannel_delivery(
             {"cron_continuable_surface": "in_channel"}, adapter,
-            origin={"platform": "slack", "chat_id": "D999", "user_id": "U_HUMAN"},
+            origin={"platform": "discord", "chat_id": "D999", "user_id": "U_HUMAN"},
         )
         adapter._session_store.get_or_create_session.assert_called_once()
         seeded = adapter._session_store.get_or_create_session.call_args[0][0]
@@ -4683,13 +4652,13 @@ class TestCronContinuableSurfaceInChannel:
     def test_thread_mode_default_still_opens_thread(self):
         """G1 regression: the default (thread) mode is byte-identical — the
         thread-open branch still fires when no surface key is set."""
-        adapter = self._slack_adapter(supports_inchannel=True)
+        adapter = self._discord_adapter(supports_inchannel=True)
         open_thread_mock, _ = self._run_inchannel_delivery({}, adapter)
         open_thread_mock.assert_called_once()
 
     def test_explicit_thread_value_opens_thread(self):
         """An explicit cron_continuable_surface: thread is the default path."""
-        adapter = self._slack_adapter(supports_inchannel=True)
+        adapter = self._discord_adapter(supports_inchannel=True)
         open_thread_mock, _ = self._run_inchannel_delivery(
             {"cron_continuable_surface": "thread"}, adapter,
         )
@@ -4699,7 +4668,7 @@ class TestCronContinuableSurfaceInChannel:
         """D6 fail-safe: in_channel on an adapter WITHOUT the capability flag
         falls back to the thread path (a threaded continuation ≈ today), never
         a dropped continuation."""
-        adapter = self._slack_adapter(supports_inchannel=False)
+        adapter = self._discord_adapter(supports_inchannel=False)
         open_thread_mock, _ = self._run_inchannel_delivery(
             {"cron_continuable_surface": "in_channel"}, adapter,
         )
@@ -4708,7 +4677,7 @@ class TestCronContinuableSurfaceInChannel:
 
     def test_unrecognised_surface_value_coerces_to_thread(self):
         """Any non-'in_channel' value is the default thread path (fail safe)."""
-        adapter = self._slack_adapter(supports_inchannel=True)
+        adapter = self._discord_adapter(supports_inchannel=True)
         open_thread_mock, _ = self._run_inchannel_delivery(
             {"cron_continuable_surface": "bogus"}, adapter,
         )
@@ -4731,7 +4700,7 @@ class TestCronContinuableSurfaceInChannel:
 
         with patch("gateway.mirror.mirror_to_session", return_value=True) as mirror_mock:
             ok = _seed_cron_channel_session(
-                {"id": "j1", "name": "Brief"}, adapter, "slack", "C123",
+                {"id": "j1", "name": "Brief"}, adapter, "discord", "C123",
                 "Daily brief", is_dm=False, user_id="U_HUMAN", chat_name="ops",
             )
         assert ok is True
@@ -4741,7 +4710,7 @@ class TestCronContinuableSurfaceInChannel:
         # What a plain top-level channel reply (reply_in_thread:false → thread
         # None) from the same user resolves to:
         inbound = SessionSource(
-            platform=Platform.TELEGRAM, chat_id="C123", chat_type="group",
+            platform=Platform.DISCORD, chat_id="C123", chat_type="group",
             user_id="U_HUMAN", thread_id=None,
         )
         assert seed_key == build_session_key(inbound), (
@@ -4766,12 +4735,12 @@ class TestCronContinuableSurfaceInChannel:
 
         with patch("gateway.mirror.mirror_to_session", return_value=True):
             _seed_cron_channel_session(
-                {"id": "j1"}, adapter, "slack", "D999", "Daily brief",
+                {"id": "j1"}, adapter, "discord", "D999", "Daily brief",
                 is_dm=True, user_id="U_HUMAN",
             )
         seeded_source = store.get_or_create_session.call_args[0][0]
         inbound = SessionSource(
-            platform=Platform.TELEGRAM, chat_id="D999", chat_type="dm",
+            platform=Platform.DISCORD, chat_id="D999", chat_type="dm",
             user_id="U_HUMAN", thread_id=None,
         )
         assert build_session_key(seeded_source) == build_session_key(inbound)
@@ -4785,7 +4754,7 @@ class TestCronContinuableSurfaceInChannel:
         adapter._session_store = store
         with patch("gateway.mirror.mirror_to_session") as mirror_mock:
             ok = _seed_cron_channel_session(
-                {"id": "j1"}, adapter, "slack", "C123", "   ",
+                {"id": "j1"}, adapter, "discord", "C123", "   ",
                 is_dm=False, user_id="U_HUMAN",
             )
         assert ok is False

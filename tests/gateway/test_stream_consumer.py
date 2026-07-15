@@ -150,12 +150,9 @@ class TestEditMessageFinalizeSignature:
         [
             ("plugins.platforms.telegram.adapter", "TelegramAdapter"),
             ("plugins.platforms.discord.adapter", "DiscordAdapter"),
-            ("plugins.platforms.slack.adapter", "SlackAdapter"),
-            ("plugins.platforms.matrix.adapter", "MatrixAdapter"),
-            ("plugins.platforms.mattermost.adapter", "MattermostAdapter"),
-            ("plugins.platforms.feishu.adapter", "FeishuAdapter"),
             ("plugins.platforms.whatsapp.adapter", "WhatsAppAdapter"),
-            ("plugins.platforms.dingtalk.adapter", "DingTalkAdapter"),
+            ("plugins.platforms.email.adapter", "EmailAdapter"),
+            ("plugins.platforms.sms.adapter", "SmsAdapter"),
         ],
     )
     def test_edit_message_accepts_finalize(self, module_path, class_name):
