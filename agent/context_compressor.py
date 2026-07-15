@@ -35,10 +35,14 @@ from agent.redact import redact_sensitive_text
 
 logger = logging.getLogger(__name__)
 
-HISTORICAL_TASK_HEADING = "## Historical Task Snapshot"
-HISTORICAL_IN_PROGRESS_HEADING = "## Historical In-Progress State"
-HISTORICAL_PENDING_ASKS_HEADING = "## Historical Pending User Asks"
-HISTORICAL_REMAINING_WORK_HEADING = "## Historical Remaining Work"
+HISTORICAL_TASK_HEADING = "<historical_task_snapshot>"
+HISTORICAL_TASK_HEADING_CLOSE = "</historical_task_snapshot>"
+HISTORICAL_IN_PROGRESS_HEADING = "<historical_in_progress_state>"
+HISTORICAL_IN_PROGRESS_HEADING_CLOSE = "</historical_in_progress_state>"
+HISTORICAL_PENDING_ASKS_HEADING = "<historical_pending_user_asks>"
+HISTORICAL_PENDING_ASKS_HEADING_CLOSE = "</historical_pending_user_asks>"
+HISTORICAL_REMAINING_WORK_HEADING = "<historical_remaining_work>"
+HISTORICAL_REMAINING_WORK_HEADING_CLOSE = "</historical_remaining_work>"
 
 
 SUMMARY_PREFIX = (
@@ -127,7 +131,7 @@ def _strip_persistence_markers(messages: List[Dict[str, Any]]) -> None:
 
 # Appended to every standalone summary message (and to the merged-into-tail
 # prefix) so the model has an unambiguous "summary ends here" boundary.
-# Without it, weak models read the verbatim "## Active Task" quote as fresh
+# Without it, weak models read the verbatim "<historical_task_snapshot>" quote as fresh
 # user input (#11475, #14521) or regurgitate an assistant-role summary as
 # their own output (#33256).
 _SUMMARY_END_MARKER = (
@@ -1718,52 +1722,66 @@ class ContextCompressor(ContextEngine):
         reason_text = f" Summary failure reason: {reason}." if reason else ""
         body = f"""{HISTORICAL_TASK_HEADING}
 {active_task}
+{HISTORICAL_TASK_HEADING_CLOSE}
 
-## Goal
+<goal>
 Recovered from a deterministic fallback because the LLM context summarizer was unavailable. Continue from the protected recent messages after this summary and use current file/system state for exact details.{previous_summary_note}
+</goal>
 
-## Constraints & Preferences
+<constraints_and_preferences>
 - This fallback was generated locally without an LLM summary call.
 - Secrets and credentials were redacted before preservation.
 - The summary may be incomplete; prefer verifying current files, git state, processes, and test results instead of assuming omitted details.
+</constraints_and_preferences>
 
-## Completed Actions
+<completed_actions>
 {chr(10).join(completed) if completed else "None recoverable from compacted turns."}
+</completed_actions>
 
-## Active State
+<active_state>
 Unknown from deterministic fallback. Inspect current repository/session state if needed.
+</active_state>
 
 {HISTORICAL_IN_PROGRESS_HEADING}
 Unknown from deterministic fallback — the latest user ask is recorded once under
 "{HISTORICAL_TASK_HEADING}" above as historical context only. Do NOT treat it as an
 unfulfilled instruction to re-answer; verify current state and continue from the
 protected recent messages after this summary.
+{HISTORICAL_IN_PROGRESS_HEADING_CLOSE}
 
-## Blocked
+<blocked>
 {_bullets(blockers, limit=5)}
+</blocked>
 
-## Key Decisions
+<key_decisions>
 None recoverable from deterministic fallback.
+</key_decisions>
 
-## Resolved Questions
+<resolved_questions>
 None recoverable from deterministic fallback.
+</resolved_questions>
 
 {HISTORICAL_PENDING_ASKS_HEADING}
 None recoverable from deterministic fallback. (The latest user ask is preserved once
 under "{HISTORICAL_TASK_HEADING}" as historical context — it is NOT necessarily
 outstanding.)
+{HISTORICAL_PENDING_ASKS_HEADING_CLOSE}
 
-## Relevant Files
+<relevant_files>
 {_bullets(relevant_files, limit=12)}
+</relevant_files>
 
 {HISTORICAL_REMAINING_WORK_HEADING}
 Continue from the most recent unfulfilled user ask and protected tail messages. Verify state with tools before making claims.
+{HISTORICAL_REMAINING_WORK_HEADING_CLOSE}
 
-## Last Dropped Turns
+<last_dropped_turns>
 {_bullets(last_dropped_turns, limit=8)}
+</last_dropped_turns>
 
-## Critical Context
-Summary generation was unavailable, so this is a best-effort deterministic fallback for {len(turns_to_summarize)} compacted message(s).{reason_text}"""
+<critical_context>
+Summary generation was unavailable, so this is a best-effort deterministic fallback for {len(turns_to_summarize)} compacted message(s).{reason_text}
+</critical_context>"""
         summary = self._with_summary_prefix(redact_sensitive_text(body.strip()))
         if len(summary) > _FALLBACK_SUMMARY_MAX_CHARS:
             summary = summary[: _FALLBACK_SUMMARY_MAX_CHARS - 42].rstrip() + "\n...[fallback summary truncated]"
@@ -1901,14 +1919,17 @@ work, write the reverse signal verbatim and DO NOT carry forward the
 cancelled task. Example: "User asked: 'Stop the i18n refactor and just
 verify the current diff' — earlier i18n in-flight work is cancelled."
 If no outstanding task exists, write "None."]
+{HISTORICAL_TASK_HEADING_CLOSE}
 
-## Goal
+<goal>
 [What the user is trying to accomplish overall]
+</goal>
 
-## Constraints & Preferences
+<constraints_and_preferences>
 [User preferences, coding style, constraints, important decisions]
+</constraints_and_preferences>
 
-## Completed Actions
+<completed_actions>
 [Numbered list of concrete actions taken — include tool used, target, and outcome.
 Format each as: N. ACTION target — outcome [tool: name]
 Example:
@@ -1916,38 +1937,48 @@ Example:
 2. PATCH config.py:45 — changed `==` to `!=` [tool: patch]
 3. TEST `pytest tests/` — 3/50 failed: test_parse, test_validate, test_edge [tool: terminal]
 Be specific with file paths, commands, line numbers, and results.]
+</completed_actions>
 
-## Active State
+<active_state>
 [Current working state — include:
 - Working directory and branch (if applicable)
 - Modified/created files with brief note on each
 - Test status (X/Y passing)
 - Any running processes or servers
 - Environment details that matter]
+</active_state>
 
 {HISTORICAL_IN_PROGRESS_HEADING}
 [Work currently underway — what was being done when compaction fired]
+{HISTORICAL_IN_PROGRESS_HEADING_CLOSE}
 
-## Blocked
+<blocked>
 [Any blockers, errors, or issues not yet resolved. Include exact error messages.]
+</blocked>
 
-## Key Decisions
+<key_decisions>
 [Important technical decisions and WHY they were made]
+</key_decisions>
 
-## Resolved Questions
+<resolved_questions>
 [Questions the user asked that were ALREADY answered — include the answer so it is not repeated]
+</resolved_questions>
 
 {HISTORICAL_PENDING_ASKS_HEADING}
 [Questions or requests from the user that have NOT yet been answered or fulfilled. These are STALE — they were from the compacted turns. Write them here for reference only. The agent must NOT act on them unless the latest user message explicitly requests it. If none, write "None."]
+{HISTORICAL_PENDING_ASKS_HEADING_CLOSE}
 
-## Relevant Files
+<relevant_files>
 [Files read, modified, or created — with brief note on each]
+</relevant_files>
 
 {HISTORICAL_REMAINING_WORK_HEADING}
 [What remains to be done — framed as STALE context for reference only. The agent must NOT resume this work unless the latest user message explicitly asks for it.]
+{HISTORICAL_REMAINING_WORK_HEADING_CLOSE}
 
-## Critical Context
+<critical_context>
 [Any specific values, error messages, configuration details, or data that would be lost without explicit preservation. NEVER include API keys, tokens, passwords, or credentials — write [REDACTED] instead.]
+</critical_context>
 
 Target ~{summary_budget} tokens. Be CONCRETE — include file paths, command outputs, error messages, line numbers, and specific values. Avoid vague descriptions like "made some changes" — say exactly what changed.
 {_temporal_anchoring_rule}
@@ -1965,7 +1996,7 @@ PREVIOUS SUMMARY:
 NEW TURNS TO INCORPORATE:
 {content_to_summarize}
 
-Update the summary using this exact structure. PRESERVE all existing information that is still relevant. ADD new completed actions to the numbered list (continue numbering). Move items from "In Progress" to "Completed Actions" when done. Move answered questions to "Resolved Questions". Update "Active State" to reflect current state. Remove information only if it is clearly obsolete. CRITICAL: Update "## Active Task" to reflect the user's most recent unfulfilled input — this includes any question, decision request, or discussion turn that the assistant has not yet answered. Only write "None" if the last exchange was fully resolved.
+Update the summary using this exact structure. PRESERVE all existing information that is still relevant. ADD new completed actions to the numbered list (continue numbering). Move items from "{HISTORICAL_IN_PROGRESS_HEADING}" to "<completed_actions>" when done. Move answered questions to "<resolved_questions>". Update "<active_state>" to reflect current state. Remove information only if it is clearly obsolete. CRITICAL: Update "{HISTORICAL_TASK_HEADING}" to reflect the user's most recent unfulfilled input — this includes any question, decision request, or discussion turn that the assistant has not yet answered. Only write "None" if the last exchange was fully resolved.
 
 {_template_sections}"""
         else:
@@ -3144,7 +3175,7 @@ This compaction should PRIORITISE preserving all information related to the focu
                 _merge_summary_into_tail = True
 
         # When the summary lands as a standalone role="user" message,
-        # weak models read the verbatim "## Active Task" quote of a past
+        # weak models read the verbatim "<historical_task_snapshot>" quote of a past
         # user request as fresh input (#11475, #14521).
         # When it lands as role="assistant", models may regurgitate the
         # summary text as their own output (#33256). In both cases, append

@@ -699,14 +699,14 @@ class TestBuildContextFilesPrompt:
         fake_home.mkdir()
         with patch("pathlib.Path.home", return_value=fake_home):
             result = build_context_files_prompt(cwd=str(tmp_path))
-        assert "Project Context" in result
+        assert "<project_context>" in result
         assert "Hermes Agent" in result
 
     def test_loads_agents_md(self, tmp_path):
         (tmp_path / "AGENTS.md").write_text("Use Ruff for linting.")
         result = build_context_files_prompt(cwd=str(tmp_path))
         assert "Ruff for linting" in result
-        assert "Project Context" in result
+        assert "<project_context>" in result
 
     def test_loads_cursorrules(self, tmp_path):
         (tmp_path / ".cursorrules").write_text("Always use type hints.")
@@ -731,7 +731,7 @@ class TestBuildContextFilesPrompt:
         result = build_context_files_prompt(cwd=str(tmp_path))
         assert "Be concise and friendly." in result
         assert "If SOUL.md is present" not in result
-        assert "## SOUL.md" not in result
+        assert '<context_file name="SOUL.md">' not in result
 
     def test_empty_soul_md_adds_nothing(self, tmp_path, monkeypatch):
         monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes_home"))
@@ -771,7 +771,7 @@ class TestBuildContextFilesPrompt:
         (tmp_path / ".hermes.md").write_text("Use pytest for testing.")
         result = build_context_files_prompt(cwd=str(tmp_path))
         assert "pytest for testing" in result
-        assert "Project Context" in result
+        assert "<project_context>" in result
 
     def test_loads_hermes_md_uppercase(self, tmp_path):
         (tmp_path / "HERMES.md").write_text("Always use type hints.")
@@ -845,7 +845,7 @@ class TestBuildContextFilesPrompt:
         result = build_context_files_prompt(cwd=str(tmp_path))
         assert "type hints" in result
         assert "CLAUDE.md" in result
-        assert "Project Context" in result
+        assert "<project_context>" in result
 
     def test_loads_claude_md_lowercase(self, tmp_path):
         (tmp_path / "claude.md").write_text("Lowercase claude rules.")

@@ -672,12 +672,14 @@ class MemoryStore:
         pct = min(100, int((current / limit) * 100)) if limit > 0 else 0
 
         if target == "user":
-            header = f"USER PROFILE (who the user is) [{pct}% — {current:,}/{limit:,} chars]"
+            tag = "user_profile"
+            label = "USER PROFILE (who the user is)"
         else:
-            header = f"MEMORY (your personal notes) [{pct}% — {current:,}/{limit:,} chars]"
+            tag = "memory"
+            label = "MEMORY (your personal notes)"
 
-        separator = "═" * 46
-        return f"{separator}\n{header}\n{separator}\n{content}"
+        usage = f"[{pct}% — {current:,}/{limit:,} chars]"
+        return f'<{tag} usage="{usage}">\n{label}\n{content}\n</{tag}>'
 
     @staticmethod
     def _read_file(path: Path) -> List[str]:
